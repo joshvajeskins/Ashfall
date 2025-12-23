@@ -6,6 +6,7 @@ import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { MODULES } from '@/lib/contract';
 import { useTransactionStore, waitForTransaction } from '@/stores/transactionStore';
+import { useGameStore } from '@/stores/gameStore';
 import {
   exitDungeonSuccess,
   completeBossFloor,
@@ -41,6 +42,7 @@ export function useDungeonTransaction() {
     failTransaction,
     removeTransaction,
   } = useTransactionStore();
+  const { updateCharacter } = useGameStore();
 
   // Show notification immediately, then update with txHash when available
   const startTransaction = (action: string) => {
@@ -64,7 +66,58 @@ export function useDungeonTransaction() {
   const movementWallet = getMovementWallet(user);
 
   /**
+   * Sync character state from chain before entering dungeon
+   * This ensures local state matches on-chain state for health, mana, level, etc.
+   */
+  const syncCharacterFromChain = useCallback(async (): Promise<boolean> => {
+    if (!movementWallet) return false;
+
+    try {
+      console.log('[useDungeonTransaction] Syncing character from chain...');
+      const response = await fetch(`${API_BASE_URL}/api/character/sync?address=${movementWallet.address}`);
+
+      if (!response.ok) {
+        console.error('[useDungeonTransaction] Failed to sync character');
+        return false;
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.character) {
+        console.error('[useDungeonTransaction] Invalid sync response:', data);
+        return false;
+      }
+
+      // Update game store with on-chain character state
+      const { character } = data;
+      updateCharacter({
+        level: character.level,
+        experience: character.experience,
+        health: character.health,
+        maxHealth: character.maxHealth,
+        mana: character.mana,
+        maxMana: character.maxMana,
+        isAlive: character.isAlive,
+        stats: character.stats,
+      });
+
+      console.log('[useDungeonTransaction] Character synced from chain:', {
+        level: character.level,
+        health: character.health,
+        maxHealth: character.maxHealth,
+        mana: character.mana,
+        maxMana: character.maxMana,
+      });
+
+      return true;
+    } catch (error) {
+      console.error('[useDungeonTransaction] Error syncing character:', error);
+      return false;
+    }
+  }, [movementWallet, updateCharacter]);
+
+  /**
    * Enter dungeon - User wallet signs (gas sponsored)
+   * Syncs character state from chain before entering
    */
   const enterDungeon = useCallback(
     async (dungeonId: number): Promise<DungeonResult> => {
@@ -74,6 +127,9 @@ export function useDungeonTransaction() {
 
       setIsPending(true);
       setLastError(null);
+
+      // Sync character state from chain BEFORE entering dungeon
+      await syncCharacterFromChain();
 
       // Show notification immediately
       const txId = startTransaction('Entered Dungeon');
@@ -132,7 +188,7 @@ export function useDungeonTransaction() {
         setIsPending(false);
       }
     },
-    [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]
+    [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction, syncCharacterFromChain]
   );
 
   /**
@@ -391,6 +447,7 @@ export function useDungeonTransaction() {
     triggerExitDungeon,
     triggerTransferFloorLoot,
     initializeStash,
+    syncCharacterFromChain,
     isPending,
     lastError,
     walletAddress: movementWallet?.address || null,
