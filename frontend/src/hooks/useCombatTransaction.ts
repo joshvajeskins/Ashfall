@@ -220,7 +220,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit attack transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit attack transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
@@ -306,7 +308,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit flee transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit flee transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
@@ -378,7 +382,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit defend transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit defend transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
@@ -452,7 +458,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit heavy attack transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit heavy attack transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
@@ -536,7 +544,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit heal transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit heal transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
@@ -690,7 +700,9 @@ export function useCombatTransaction() {
       });
 
       if (!submitResponse.ok) {
-        throw new Error('Failed to submit pickup transaction');
+        const errorData = await submitResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to submit pickup transaction';
+        throw new Error(errorMsg);
       }
 
       const result = await submitResponse.json();
