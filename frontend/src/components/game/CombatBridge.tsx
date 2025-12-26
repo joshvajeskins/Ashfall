@@ -76,11 +76,12 @@ export function CombatBridge() {
     [initiateCombat]
   );
 
-  // Handle player attack request
-  const handlePlayerAttackRequest = useCallback(async () => {
-    console.log('[CombatBridge] Player attacking on-chain');
+  // Handle player attack request - receives seed from CombatScene for synced calculations
+  const handlePlayerAttackRequest = useCallback(async (data?: { seed?: number }) => {
+    const seed = data?.seed ?? Math.floor(Math.random() * 1000000);
+    console.log('[CombatBridge] Player attacking on-chain with seed:', seed);
 
-    const result = await playerAttack();
+    const result = await playerAttack(seed);
 
     if (result.success) {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
@@ -165,11 +166,12 @@ export function CombatBridge() {
     }
   }, [playerDefend]);
 
-  // Handle player heavy attack request
-  const handlePlayerHeavyAttackRequest = useCallback(async () => {
-    console.log('[CombatBridge] Player heavy attacking on-chain');
+  // Handle player heavy attack request - receives seed from CombatScene for synced calculations
+  const handlePlayerHeavyAttackRequest = useCallback(async (data?: { seed?: number }) => {
+    const seed = data?.seed ?? Math.floor(Math.random() * 1000000);
+    console.log('[CombatBridge] Player heavy attacking on-chain with seed:', seed);
 
-    const result = await playerHeavyAttack();
+    const result = await playerHeavyAttack(seed);
 
     if (result.success) {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {

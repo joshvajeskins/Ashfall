@@ -694,6 +694,9 @@ export class CombatScene extends Phaser.Scene {
 
   // ==================== PLAYER ATTACK ====================
 
+  // Store the seed used for current attack (for synced calculations)
+  private currentAttackSeed: number = 0;
+
   private playerAttack(): void {
     if (this.isAnimating || this.isWaitingForTx || this.currentTurn !== 'player') return;
 
@@ -702,8 +705,11 @@ export class CombatScene extends Phaser.Scene {
     this.setButtonsEnabled(false);
     this.showTxStatus('Signing attack transaction...');
 
-    // Emit request to CombatBridge (React)
-    gameEvents.emit(GAME_EVENTS.PLAYER_ATTACK_REQUEST);
+    // Generate seed ONCE and use for both local calculation and contract
+    this.currentAttackSeed = this.generateSeed();
+
+    // Emit request to CombatBridge (React) with the seed
+    gameEvents.emit(GAME_EVENTS.PLAYER_ATTACK_REQUEST, { seed: this.currentAttackSeed });
   }
 
   private onPlayerAttackConfirmed(combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean }): void {
@@ -711,8 +717,8 @@ export class CombatScene extends Phaser.Scene {
     this.onChainCombatState = combatState; // Store on-chain state for later use
     soundManager.play('attack');
 
-    // Calculate damage locally for animation (on-chain has authoritative state)
-    const result = this.calculateDamage(this.character, this.enemy);
+    // Calculate damage using the SAME seed sent to contract (synced calculation)
+    const result = this.calculateDamage(this.character, this.enemy, this.currentAttackSeed);
 
     // Use on-chain enemy health if available, otherwise use local calculation
     if (combatState) {
@@ -774,6 +780,9 @@ export class CombatScene extends Phaser.Scene {
 
   // ==================== PLAYER HEAVY ATTACK ====================
 
+  // Store the seed used for current heavy attack
+  private currentHeavyAttackSeed: number = 0;
+
   private playerHeavyAttack(): void {
     if (this.isAnimating || this.isWaitingForTx || this.currentTurn !== 'player') return;
 
@@ -789,7 +798,10 @@ export class CombatScene extends Phaser.Scene {
     this.setButtonsEnabled(false);
     this.showTxStatus('Signing heavy attack...');
 
-    gameEvents.emit(GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST);
+    // Generate seed ONCE and use for both local calculation and contract
+    this.currentHeavyAttackSeed = this.generateSeed();
+
+    gameEvents.emit(GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST, { seed: this.currentHeavyAttackSeed });
   }
 
   private onPlayerHeavyAttackConfirmed(combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean }): void {
@@ -801,7 +813,8 @@ export class CombatScene extends Phaser.Scene {
     this.character.mana -= MANA_COSTS.HEAVY_ATTACK;
 
     // Calculate heavy damage (1.5x) - INT contributes to heavy attack
-    const result = this.calculateDamage(this.character, this.enemy);
+    // Use the SAME seed sent to contract for synced calculation
+    const result = this.calculateDamage(this.character, this.enemy, this.currentHeavyAttackSeed);
     const intBonus = Math.floor(this.character.stats.intelligence / 2);
     const heavyDamage = Math.floor((result.damage + intBonus) * 1.5);
 
