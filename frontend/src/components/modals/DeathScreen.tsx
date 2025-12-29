@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useGameStore } from '@/stores/gameStore';
+import { useWalletStore } from '@/stores/walletStore';
+import { reportPlayerDeath } from '@/lib/move/dungeonService';
 import type { Item } from '@/types';
 
 const RARITY_COLORS: Record<string, string> = {
@@ -16,29 +18,41 @@ const RARITY_COLORS: Record<string, string> = {
 export function DeathScreen() {
   const { activeModal, deathState, setDeathChainConfirmed, closeModal } = useUIStore();
   const { die } = useGameStore();
+  const { address } = useWalletStore();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [chainError, setChainError] = useState<string | null>(null);
 
   const isOpen = activeModal === 'death';
 
-  useEffect(() => {
-    if (isOpen && !deathState.isChainConfirmed) {
-      processDeathOnChain();
+  const processDeathOnChain = useCallback(async () => {
+    if (!address) {
+      setChainError('Wallet not connected');
+      return;
     }
-  }, [isOpen]);
 
-  const processDeathOnChain = async () => {
     setIsProcessing(true);
+    setChainError(null);
+
     try {
-      // TODO: Call actual chain transaction here
-      // await heroService.playerDied();
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      setDeathChainConfirmed();
+      const result = await reportPlayerDeath(address);
+      if (result.success) {
+        setDeathChainConfirmed();
+      } else {
+        setChainError(result.error || 'Failed to process death');
+      }
     } catch (error) {
       console.error('Failed to process death on chain:', error);
+      setChainError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [address, setDeathChainConfirmed]);
+
+  useEffect(() => {
+    if (isOpen && !deathState.isChainConfirmed && address) {
+      processDeathOnChain();
+    }
+  }, [isOpen, deathState.isChainConfirmed, address, processDeathOnChain]);
 
   const handleContinue = () => {
     die();
@@ -82,6 +96,16 @@ export function DeathScreen() {
               <p className="flex items-center justify-center gap-2">
                 <span className="animate-pulse">Processing on chain...</span>
               </p>
+            ) : chainError ? (
+              <div className="space-y-2">
+                <p className="text-red-500">{chainError}</p>
+                <button
+                  onClick={processDeathOnChain}
+                  className="text-xs text-blue-400 hover:text-blue-300 underline"
+                >
+                  Retry
+                </button>
+              </div>
             ) : deathState.isChainConfirmed ? (
               <p className="text-green-500">Death confirmed on chain</p>
             ) : null}

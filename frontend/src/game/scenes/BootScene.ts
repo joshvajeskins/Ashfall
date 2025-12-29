@@ -2,10 +2,29 @@ import * as Phaser from 'phaser';
 import { gameEvents, GAME_EVENTS } from '../events/GameEvents';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
+// Asset configuration - real assets to attempt loading
+const ASSETS = {
+  sprites: {
+    players: ['warrior', 'rogue', 'mage'],
+    enemies: ['skeleton', 'zombie', 'ghoul', 'vampire', 'lich', 'boss'],
+    items: ['sword', 'shield', 'armor', 'potion', 'ring', 'gold'],
+  },
+  tiles: ['floor', 'wall', 'door', 'exit', 'chest'],
+  audio: {
+    sfx: [
+      'attack', 'hit', 'critical', 'player-hurt', 'player-death',
+      'enemy-death', 'item-pickup', 'level-up', 'door-open',
+      'button-click', 'menu-open', 'flee', 'error', 'victory'
+    ],
+    music: ['menu', 'dungeon', 'combat', 'boss'],
+  },
+};
+
 export class BootScene extends Phaser.Scene {
   private loadingBar!: Phaser.GameObjects.Graphics;
   private progressBar!: Phaser.GameObjects.Graphics;
   private loadingText!: Phaser.GameObjects.Text;
+  private failedAssets: Set<string> = new Set();
 
   constructor() {
     super({ key: 'BootScene' });
@@ -13,6 +32,7 @@ export class BootScene extends Phaser.Scene {
 
   preload(): void {
     this.createLoadingUI();
+    this.setupErrorHandler();
     this.loadAssets();
     this.setupLoadingEvents();
   }
@@ -21,15 +41,12 @@ export class BootScene extends Phaser.Scene {
     const centerX = GAME_WIDTH / 2;
     const centerY = GAME_HEIGHT / 2;
 
-    // Loading bar background
     this.loadingBar = this.add.graphics();
     this.loadingBar.fillStyle(0x222222, 1);
     this.loadingBar.fillRect(centerX - 160, centerY - 25, 320, 50);
 
-    // Progress bar (will be drawn in progress callback)
     this.progressBar = this.add.graphics();
 
-    // Loading text
     this.loadingText = this.add.text(centerX, centerY - 60, 'Loading...', {
       fontFamily: 'monospace',
       fontSize: '24px',
@@ -37,7 +54,6 @@ export class BootScene extends Phaser.Scene {
     });
     this.loadingText.setOrigin(0.5);
 
-    // Game title
     this.add.text(centerX, centerY - 120, 'ASHFALL', {
       fontFamily: 'monospace',
       fontSize: '48px',
@@ -46,84 +62,55 @@ export class BootScene extends Phaser.Scene {
     }).setOrigin(0.5);
   }
 
+  private setupErrorHandler(): void {
+    this.load.on('loaderror', (file: Phaser.Loader.File) => {
+      this.failedAssets.add(file.key);
+    });
+  }
+
   private loadAssets(): void {
-    // Generate placeholder assets programmatically
-    this.generatePlaceholderTextures();
+    // Try to load real assets
+    this.loadPlayerSprites();
+    this.loadEnemySprites();
+    this.loadTileSprites();
+    this.loadItemSprites();
+    this.loadAudio();
   }
 
-  private generatePlaceholderTextures(): void {
-    // Player sprite (32x32)
-    const playerGraphics = this.make.graphics({ x: 0, y: 0 });
-    playerGraphics.fillStyle(0x4488ff, 1);
-    playerGraphics.fillRect(4, 4, 24, 24);
-    playerGraphics.fillStyle(0xffffff, 1);
-    playerGraphics.fillRect(8, 8, 6, 6); // Eyes
-    playerGraphics.fillRect(18, 8, 6, 6);
-    playerGraphics.generateTexture('player', 32, 32);
-    playerGraphics.destroy();
-
-    // Enemy sprites (32x32)
-    this.createEnemyTexture('enemy-goblin', 0x44aa44);
-    this.createEnemyTexture('enemy-skeleton', 0xcccccc);
-    this.createEnemyTexture('enemy-demon', 0xaa2222);
-
-    // Tile textures
-    this.createTileTexture('tile-floor', 0x333333);
-    this.createTileTexture('tile-wall', 0x555555);
-    this.createTileTexture('tile-door', 0x886644);
-    this.createTileTexture('tile-exit', 0x44ff44);
-
-    // Item icons (24x24)
-    this.createItemTexture('item-sword', 0xaaaaaa, 'S');
-    this.createItemTexture('item-shield', 0x6666aa, 'D');
-    this.createItemTexture('item-armor', 0x886644, 'A');
-    this.createItemTexture('item-potion', 0xff4444, 'P');
-    this.createItemTexture('item-gold', 0xffcc00, 'G');
-
-    // UI elements
-    this.createUITexture('button', 0x444444, 120, 40);
-    this.createUITexture('panel', 0x222222, 200, 300);
+  private loadAudio(): void {
+    // Load SFX
+    ASSETS.audio.sfx.forEach(sfx => {
+      this.load.audio(sfx, `/assets/audio/sfx/${sfx}.mp3`);
+    });
+    // Load music
+    ASSETS.audio.music.forEach(track => {
+      this.load.audio(`music-${track}`, `/assets/audio/music/${track}.mp3`);
+    });
   }
 
-  private createEnemyTexture(key: string, color: number): void {
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(color, 1);
-    g.fillRect(4, 4, 24, 24);
-    g.fillStyle(0xff0000, 1);
-    g.fillRect(8, 8, 6, 6); // Red eyes
-    g.fillRect(18, 8, 6, 6);
-    g.generateTexture(key, 32, 32);
-    g.destroy();
+  private loadPlayerSprites(): void {
+    ASSETS.sprites.players.forEach(player => {
+      this.load.image(`player-${player}`, `/assets/sprites/player/${player}.png`);
+    });
+    this.load.image('player', '/assets/sprites/player/warrior.png');
   }
 
-  private createTileTexture(key: string, color: number): void {
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(color, 1);
-    g.fillRect(0, 0, 32, 32);
-    g.lineStyle(1, 0x222222, 0.3);
-    g.strokeRect(0, 0, 32, 32);
-    g.generateTexture(key, 32, 32);
-    g.destroy();
+  private loadEnemySprites(): void {
+    ASSETS.sprites.enemies.forEach(enemy => {
+      this.load.image(`enemy-${enemy}`, `/assets/sprites/enemies/${enemy}.png`);
+    });
   }
 
-  private createItemTexture(key: string, color: number, letter: string): void {
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(color, 1);
-    g.fillRoundedRect(2, 2, 20, 20, 4);
-    g.generateTexture(key, 24, 24);
-    g.destroy();
-
-    // Add letter overlay via text (done in scenes that use items)
+  private loadTileSprites(): void {
+    ASSETS.tiles.forEach(tile => {
+      this.load.image(`tile-${tile}`, `/assets/tiles/${tile}.png`);
+    });
   }
 
-  private createUITexture(key: string, color: number, w: number, h: number): void {
-    const g = this.make.graphics({ x: 0, y: 0 });
-    g.fillStyle(color, 1);
-    g.fillRoundedRect(0, 0, w, h, 8);
-    g.lineStyle(2, 0x666666, 1);
-    g.strokeRoundedRect(0, 0, w, h, 8);
-    g.generateTexture(key, w, h);
-    g.destroy();
+  private loadItemSprites(): void {
+    ASSETS.sprites.items.forEach(item => {
+      this.load.image(`item-${item}`, `/assets/sprites/items/${item}.png`);
+    });
   }
 
   private setupLoadingEvents(): void {
@@ -145,11 +132,117 @@ export class BootScene extends Phaser.Scene {
   }
 
   create(): void {
-    gameEvents.emit(GAME_EVENTS.SCENE_READY, 'BootScene');
+    // Generate fallback textures for any assets that failed to load
+    this.generateFallbackTextures();
 
-    // Transition to menu after a brief delay
+    gameEvents.emit(GAME_EVENTS.SCENE_READY, 'BootScene');
     this.time.delayedCall(500, () => {
       this.scene.start('MenuScene');
     });
+  }
+
+  private generateFallbackTextures(): void {
+    // Player fallbacks
+    if (this.failedAssets.has('player') || !this.textures.exists('player')) {
+      this.createPlayerTexture('player', 0x4488ff);
+    }
+    ASSETS.sprites.players.forEach((p, i) => {
+      const key = `player-${p}`;
+      if (this.failedAssets.has(key) || !this.textures.exists(key)) {
+        const colors = [0x4488ff, 0x44aa44, 0xaa44aa];
+        this.createPlayerTexture(key, colors[i] || 0x4488ff);
+      }
+    });
+
+    // Enemy fallbacks
+    const enemyColors: Record<string, number> = {
+      skeleton: 0xcccccc, zombie: 0x446644, ghoul: 0x666688,
+      vampire: 0x880044, lich: 0x440088, boss: 0xff2200,
+    };
+    ASSETS.sprites.enemies.forEach(enemy => {
+      const key = `enemy-${enemy}`;
+      if (this.failedAssets.has(key) || !this.textures.exists(key)) {
+        this.createEnemyTexture(key, enemyColors[enemy] || 0xaa2222, enemy === 'boss');
+      }
+    });
+
+    // Tile fallbacks
+    const tileColors: Record<string, number> = {
+      floor: 0x333333, wall: 0x555555, door: 0x886644, exit: 0x44ff44, chest: 0xccaa00,
+    };
+    ASSETS.tiles.forEach(tile => {
+      const key = `tile-${tile}`;
+      if (this.failedAssets.has(key) || !this.textures.exists(key)) {
+        this.createTileTexture(key, tileColors[tile] || 0x333333);
+      }
+    });
+
+    // Item fallbacks
+    const itemColors: Record<string, number> = {
+      sword: 0xaaaaaa, shield: 0x6666aa, armor: 0x886644,
+      potion: 0xff4444, ring: 0xffaa00, gold: 0xffcc00,
+    };
+    ASSETS.sprites.items.forEach(item => {
+      const key = `item-${item}`;
+      if (this.failedAssets.has(key) || !this.textures.exists(key)) {
+        this.createItemTexture(key, itemColors[item] || 0xaaaaaa);
+      }
+    });
+
+    // UI elements (always generated)
+    this.createUITexture('button', 0x444444, 120, 40);
+    this.createUITexture('panel', 0x222222, 200, 300);
+  }
+
+  private createPlayerTexture(key: string, color: number): void {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(color, 1);
+    g.fillRect(4, 4, 24, 24);
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(8, 8, 6, 6);
+    g.fillRect(18, 8, 6, 6);
+    g.generateTexture(key, 32, 32);
+    g.destroy();
+  }
+
+  private createEnemyTexture(key: string, color: number, isBoss = false): void {
+    const size = isBoss ? 64 : 32;
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(color, 1);
+    g.fillRect(2, 2, size - 4, size - 4);
+    g.fillStyle(0xff0000, 1);
+    const eyeSize = isBoss ? 10 : 6;
+    g.fillRect(size * 0.25 - eyeSize / 2, size * 0.25, eyeSize, eyeSize);
+    g.fillRect(size * 0.75 - eyeSize / 2, size * 0.25, eyeSize, eyeSize);
+    g.generateTexture(key, size, size);
+    g.destroy();
+  }
+
+  private createTileTexture(key: string, color: number): void {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(color, 1);
+    g.fillRect(0, 0, 32, 32);
+    g.lineStyle(1, 0x222222, 0.3);
+    g.strokeRect(0, 0, 32, 32);
+    g.generateTexture(key, 32, 32);
+    g.destroy();
+  }
+
+  private createItemTexture(key: string, color: number): void {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(2, 2, 20, 20, 4);
+    g.generateTexture(key, 24, 24);
+    g.destroy();
+  }
+
+  private createUITexture(key: string, color: number, w: number, h: number): void {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(0, 0, w, h, 8);
+    g.lineStyle(2, 0x666666, 1);
+    g.strokeRoundedRect(0, 0, w, h, 8);
+    g.generateTexture(key, w, h);
+    g.destroy();
   }
 }
