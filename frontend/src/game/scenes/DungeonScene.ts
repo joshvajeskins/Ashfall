@@ -22,6 +22,13 @@ interface DungeonEnemy {
   hasAnimations: boolean;
 }
 
+interface FloorStats {
+  enemiesKilled: number;
+  itemsCollected: number;
+  xpEarned: number;
+  collectedItems: Item[];
+}
+
 export class DungeonScene extends Phaser.Scene {
   private character!: Character;
   private player!: Phaser.GameObjects.Sprite;
@@ -56,11 +63,11 @@ export class DungeonScene extends Phaser.Scene {
   private rarityEffects!: RarityEffects;
 
   // Floor stats tracking (persisted across room transitions)
-  private floorStats = {
+  private floorStats: FloorStats = {
     enemiesKilled: 0,
     itemsCollected: 0,
     xpEarned: 0,
-    collectedItems: [] as Item[], // Store actual item data for display
+    collectedItems: [],
   };
 
   // Floor transition overlay
@@ -80,7 +87,7 @@ export class DungeonScene extends Phaser.Scene {
     floor?: number;
     roomId?: number;
     entryDirection?: string;
-    floorStats?: typeof this.floorStats;
+    floorStats?: FloorStats;
   }): void {
     this.character = data.character;
     const previousFloor = this.currentFloor;
