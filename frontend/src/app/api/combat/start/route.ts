@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeAuthorizedCombatAction } from '@/lib/shinami/invisibleWallet';
-import { combatService } from '@/lib/move/client';
+import { combatService, heroService } from '@/lib/move/client';
 
 /**
  * POST /api/combat/start
@@ -57,16 +57,26 @@ export async function POST(request: NextRequest) {
       [enemyType, floor, roomId]
     );
 
-    // Fetch initial combat state including enemy intent and health
+    // Fetch initial combat state including enemy intent, enemy health, and player stats
     let enemyIntent = 0;
     let enemyHealth = 0;
     let enemyMaxHealth = 0;
+    let playerHealth = 0;
+    let playerMaxHealth = 0;
+    let playerMana = 0;
+    let playerMaxMana = 0;
     try {
       const [enemyIntent_] = await combatService.getEnemyIntent(playerAddress);
       enemyIntent = enemyIntent_;
       const [health, maxHealth] = await combatService.getCombatState(playerAddress);
       enemyHealth = health;
       enemyMaxHealth = maxHealth;
+      // Fetch player stats for mana sync
+      const [, , hp, maxHp, mana, maxMana] = await heroService.getCharacterStats(playerAddress);
+      playerHealth = hp;
+      playerMaxHealth = maxHp;
+      playerMana = mana;
+      playerMaxMana = maxMana;
     } catch {
       // Fallback - use defaults
     }
@@ -78,6 +88,10 @@ export async function POST(request: NextRequest) {
       enemyIntent,
       enemyHealth,
       enemyMaxHealth,
+      playerHealth,
+      playerMaxHealth,
+      playerMana,
+      playerMaxMana,
     });
   } catch (error) {
     console.error('Error starting combat:', error);

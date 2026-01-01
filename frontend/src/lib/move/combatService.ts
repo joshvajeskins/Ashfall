@@ -20,6 +20,11 @@ export interface CombatStartResponse {
   enemyIntent?: number;
   enemyHealth?: number;
   enemyMaxHealth?: number;
+  // Player stats from on-chain (for mana sync)
+  playerHealth?: number;
+  playerMaxHealth?: number;
+  playerMana?: number;
+  playerMaxMana?: number;
   // Already in combat indicator
   alreadyInCombat?: boolean;
   combatState?: { enemyHealth: number; enemyMaxHealth: number; turn: number; isActive: boolean };
