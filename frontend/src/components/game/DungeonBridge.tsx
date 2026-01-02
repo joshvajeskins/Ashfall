@@ -58,7 +58,7 @@ export function DungeonBridge() {
   // Called when player exits a floor via the floor exit door
   // Also transfers pending loot to stash for mid-dungeon safety
   const handleFloorComplete = useCallback(
-    async (data: { floor: number; enemiesKilled?: number; xpEarned?: number }) => {
+    async (data: { floor: number; enemiesKilled?: number; xpEarned?: number; itemsCollected?: number }) => {
       console.log('[DungeonBridge] Completing floor on-chain:', data);
 
       // Use provided values or defaults (blockchain tracks actual state)
@@ -74,11 +74,34 @@ export function DungeonBridge() {
         const lootResult = await triggerTransferFloorLoot();
         if (lootResult.success) {
           console.log('[DungeonBridge] Floor loot transferred to stash:', lootResult.txHash);
+          // Emit success with all floor data
+          gameEvents.emit(GAME_EVENTS.FLOOR_TX_SUCCESS, {
+            floor: data.floor,
+            enemiesKilled,
+            xpEarned,
+            itemsCollected: data.itemsCollected ?? 0,
+            floorTxHash: result.txHash,
+            lootTxHash: lootResult.txHash,
+          });
         } else {
           console.warn('[DungeonBridge] Failed to transfer floor loot:', lootResult.error);
+          // Still emit success for floor complete, loot transfer is optional
+          gameEvents.emit(GAME_EVENTS.FLOOR_TX_SUCCESS, {
+            floor: data.floor,
+            enemiesKilled,
+            xpEarned,
+            itemsCollected: data.itemsCollected ?? 0,
+            floorTxHash: result.txHash,
+            lootTxHash: null,
+            lootError: lootResult.error,
+          });
         }
       } else {
         console.warn('[DungeonBridge] Failed to complete floor:', result.error);
+        gameEvents.emit(GAME_EVENTS.FLOOR_TX_FAILED, {
+          floor: data.floor,
+          error: result.error,
+        });
       }
     },
     [triggerCompleteFloor, triggerTransferFloorLoot]

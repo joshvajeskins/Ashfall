@@ -128,7 +128,7 @@ export function useCombatTransaction() {
           // Parse values as numbers (chain returns strings for u64)
           const enemyHealth = Number(result.combatState.enemyHealth) || 0;
           const enemyMaxHealth = Number(result.combatState.enemyMaxHealth) || 0;
-          const isActive = result.combatState.isActive === true || result.combatState.isActive === 'true';
+          const isActive = result.combatState.isActive === true || String(result.combatState.isActive) === 'true';
 
           console.log('[useCombatTransaction] Resume combat state:', { enemyHealth, enemyMaxHealth, isActive, enemyIntent });
 

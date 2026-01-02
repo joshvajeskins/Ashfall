@@ -83,6 +83,8 @@ export const GAME_EVENTS = {
   DUNGEON_EXIT: 'dungeon:exit',
   DUNGEON_COMPLETE: 'dungeon:complete',
   FLOOR_COMPLETE: 'floor:complete',
+  FLOOR_TX_SUCCESS: 'floor:txSuccess',
+  FLOOR_TX_FAILED: 'floor:txFailed',
   ROOM_ENTER: 'room:enter',
   ROOM_CLEAR: 'room:clear',
   ROOM_TRANSITION: 'room:transition',

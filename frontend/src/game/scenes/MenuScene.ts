@@ -223,16 +223,17 @@ export class MenuScene extends Phaser.Scene {
 
   private setupEventListeners(): void {
     // Listen for successful dungeon entry from DungeonBridge
-    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER, (data: { action?: string; txHash?: string }) => {
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER, ((...args: unknown[]) => {
+      const data = args[0] as { action?: string; txHash?: string } | undefined;
       if (data?.action === 'enter_dungeon' && data?.txHash) {
         this.onDungeonEntrySuccess();
       }
-    });
+    }) as (...args: unknown[]) => void);
 
     // Listen for failed dungeon entry
-    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER_FAILED, () => {
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER_FAILED, (() => {
       this.onDungeonEntryFailed();
-    });
+    }) as (...args: unknown[]) => void);
   }
 
   private onEnterDungeon(): void {

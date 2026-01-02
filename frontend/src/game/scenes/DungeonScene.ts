@@ -55,6 +55,17 @@ export class DungeonScene extends Phaser.Scene {
   private transitions!: TransitionManager;
   private rarityEffects!: RarityEffects;
 
+  // Floor stats tracking
+  private floorStats = {
+    enemiesKilled: 0,
+    itemsCollected: 0,
+    xpEarned: 0,
+  };
+
+  // Floor transition overlay
+  private floorTransitionOverlay: Phaser.GameObjects.Container | null = null;
+  private isWaitingForFloorTx = false;
+
   constructor() {
     super({ key: 'DungeonScene' });
   }
@@ -71,6 +82,15 @@ export class DungeonScene extends Phaser.Scene {
     this.items = [];
     this.doorZones = [];
     this.isTransitioning = false;
+    this.isWaitingForFloorTx = false;
+    this.floorTransitionOverlay = null;
+
+    // Reset floor stats for new floor
+    this.floorStats = {
+      enemiesKilled: 0,
+      itemsCollected: 0,
+      xpEarned: 0,
+    };
 
     if (data.dungeonLayout) {
       this.dungeonLayout = data.dungeonLayout;
@@ -635,8 +655,49 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private nextFloor(): void {
+    if (this.isWaitingForFloorTx) return;
+
+    const completedFloor = this.currentFloor;
     this.currentFloor++;
-    gameEvents.emit(GAME_EVENTS.FLOOR_COMPLETE, { floor: this.currentFloor - 1 });
+
+    // Show floor transition overlay
+    this.showFloorTransitionOverlay(completedFloor);
+    this.isWaitingForFloorTx = true;
+
+    // Emit floor complete with stats to trigger blockchain transactions
+    gameEvents.emit(GAME_EVENTS.FLOOR_COMPLETE, {
+      floor: completedFloor,
+      enemiesKilled: this.floorStats.enemiesKilled,
+      xpEarned: this.floorStats.xpEarned,
+      itemsCollected: this.floorStats.itemsCollected,
+    });
+
+    // Listen for transaction completion
+    const handleTxSuccess = (data: { floor: number }) => {
+      if (data.floor !== completedFloor) return;
+      gameEvents.off(GAME_EVENTS.FLOOR_TX_SUCCESS, handleTxSuccess as (...args: unknown[]) => void);
+      gameEvents.off(GAME_EVENTS.FLOOR_TX_FAILED, handleTxFailed as (...args: unknown[]) => void);
+      this.proceedToNextFloor();
+    };
+
+    const handleTxFailed = (data: { floor: number; error: string }) => {
+      if (data.floor !== completedFloor) return;
+      gameEvents.off(GAME_EVENTS.FLOOR_TX_SUCCESS, handleTxSuccess as (...args: unknown[]) => void);
+      gameEvents.off(GAME_EVENTS.FLOOR_TX_FAILED, handleTxFailed as (...args: unknown[]) => void);
+      // Still proceed on failure - game continues but loot may not be saved
+      this.updateFloorOverlayStatus('Transaction failed, continuing...');
+      this.time.delayedCall(1500, () => {
+        this.proceedToNextFloor();
+      });
+    };
+
+    gameEvents.on(GAME_EVENTS.FLOOR_TX_SUCCESS, handleTxSuccess as (...args: unknown[]) => void);
+    gameEvents.on(GAME_EVENTS.FLOOR_TX_FAILED, handleTxFailed as (...args: unknown[]) => void);
+  }
+
+  private proceedToNextFloor(): void {
+    this.isWaitingForFloorTx = false;
+    this.hideFloorTransitionOverlay();
 
     if (this.currentFloor > DUNGEON_CONFIG.MAX_FLOORS) {
       this.transitionToVictory();
@@ -653,6 +714,135 @@ export class DungeonScene extends Phaser.Scene {
     this.time.delayedCall(300, () => {
       this.scene.restart({ character: this.character, dungeonLayout: this.dungeonLayout, floor: this.currentFloor, roomId: 0 });
     });
+  }
+
+  private showFloorTransitionOverlay(completedFloor: number): void {
+    // Create dark overlay
+    const overlay = this.add.container(0, 0).setDepth(1000).setScrollFactor(0);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x000000, 0.85);
+    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    overlay.add(bg);
+
+    const centerX = GAME_WIDTH / 2;
+    let y = 120;
+
+    // Floor complete title
+    const title = this.add.text(centerX, y, `FLOOR ${completedFloor} COMPLETE`, {
+      fontFamily: 'monospace',
+      fontSize: '32px',
+      color: '#ffa500',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    overlay.add(title);
+
+    y += 60;
+
+    // Stats section
+    const statsTitle = this.add.text(centerX, y, '--- Floor Stats ---', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#888888',
+    }).setOrigin(0.5);
+    overlay.add(statsTitle);
+
+    y += 40;
+
+    const stats = [
+      { label: 'Enemies Killed', value: this.floorStats.enemiesKilled, color: '#ff6666' },
+      { label: 'Items Collected', value: this.floorStats.itemsCollected, color: '#66ff66' },
+      { label: 'XP Earned', value: this.floorStats.xpEarned, color: '#6666ff' },
+    ];
+
+    stats.forEach(stat => {
+      const text = this.add.text(centerX, y, `${stat.label}: ${stat.value}`, {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: stat.color,
+      }).setOrigin(0.5);
+      overlay.add(text);
+      y += 35;
+    });
+
+    y += 30;
+
+    // Character status section
+    const charTitle = this.add.text(centerX, y, '--- Character Status ---', {
+      fontFamily: 'monospace',
+      fontSize: '18px',
+      color: '#888888',
+    }).setOrigin(0.5);
+    overlay.add(charTitle);
+
+    y += 40;
+
+    const charStats = [
+      { label: 'Level', value: this.character.level, color: '#ffffff' },
+      { label: 'Health', value: `${this.character.health}/${this.character.maxHealth}`, color: '#ff4444' },
+      { label: 'Mana', value: `${this.character.mana}/${this.character.maxMana}`, color: '#4488ff' },
+      { label: 'Total XP', value: this.character.experience, color: '#ffff44' },
+    ];
+
+    charStats.forEach(stat => {
+      const text = this.add.text(centerX, y, `${stat.label}: ${stat.value}`, {
+        fontFamily: 'monospace',
+        fontSize: '18px',
+        color: stat.color,
+      }).setOrigin(0.5);
+      overlay.add(text);
+      y += 30;
+    });
+
+    y += 40;
+
+    // Loading status
+    const statusText = this.add.text(centerX, y, 'Saving progress to blockchain...', {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#aaaaaa',
+    }).setOrigin(0.5);
+    statusText.setName('statusText');
+    overlay.add(statusText);
+
+    // Spinning loader
+    const loader = this.add.graphics();
+    loader.setName('loader');
+    this.drawLoader(loader, centerX, y + 40);
+    overlay.add(loader);
+
+    // Animate loader
+    this.tweens.add({
+      targets: loader,
+      angle: 360,
+      duration: 1000,
+      repeat: -1,
+    });
+
+    this.floorTransitionOverlay = overlay;
+  }
+
+  private drawLoader(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    graphics.clear();
+    graphics.lineStyle(4, 0xffa500, 1);
+    graphics.arc(x, y, 20, 0, Math.PI * 1.5);
+    graphics.strokePath();
+  }
+
+  private updateFloorOverlayStatus(message: string): void {
+    if (!this.floorTransitionOverlay) return;
+    const statusText = this.floorTransitionOverlay.getByName('statusText') as Phaser.GameObjects.Text;
+    if (statusText) {
+      statusText.setText(message);
+      statusText.setColor('#ff6666');
+    }
+  }
+
+  private hideFloorTransitionOverlay(): void {
+    if (this.floorTransitionOverlay) {
+      this.floorTransitionOverlay.destroy();
+      this.floorTransitionOverlay = null;
+    }
   }
 
   private spawnBossEncounter(): void {
@@ -699,6 +889,9 @@ export class DungeonScene extends Phaser.Scene {
           consumableType: itemData.type === 'Consumable' ? 0 : undefined,
           power: itemData.type === 'Consumable' ? 50 : undefined
         });
+
+        // Track item collection stats
+        this.floorStats.itemsCollected++;
 
         // Visual/audio feedback immediately (transaction in background)
         soundManager.play('itemPickup');
@@ -756,6 +949,10 @@ export class DungeonScene extends Phaser.Scene {
     const idx = this.enemies.findIndex((e) => e.data.id === enemyId);
     if (idx !== -1) {
       const enemy = this.enemies[idx];
+
+      // Track kill stats
+      this.floorStats.enemiesKilled++;
+      this.floorStats.xpEarned += enemy.data.xpReward ?? 0;
 
       // Check if boss was defeated
       if (enemy.data.isBoss) {
