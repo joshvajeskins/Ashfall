@@ -35,6 +35,11 @@ export interface CombatResult {
   enemyIntent?: number;
   // Already in combat - need to resume
   alreadyInCombat?: boolean;
+  // Player stats from on-chain (for combat start sync)
+  playerHealth?: number;
+  playerMaxHealth?: number;
+  playerMana?: number;
+  playerMaxMana?: number;
 }
 
 /**
@@ -134,7 +139,7 @@ export function useCombatTransaction() {
           };
         }
 
-        // Return with on-chain enemy intent and health
+        // Return with on-chain enemy intent, enemy health, and player stats
         return {
           success: result.success,
           txHash: result.txHash,
@@ -146,6 +151,11 @@ export function useCombatTransaction() {
             isActive: true,
             enemyKilled: false,
           } : undefined,
+          // Pass player stats from chain for combat sync
+          playerHealth: result.playerHealth,
+          playerMaxHealth: result.playerMaxHealth,
+          playerMana: result.playerMana,
+          playerMaxMana: result.playerMaxMana,
         };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to start combat';
