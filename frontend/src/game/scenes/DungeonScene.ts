@@ -8,7 +8,7 @@ import type { Character, Enemy, Room, DungeonLayout, Item } from '@/types';
 // Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (50px)
 const TILE_SCALE = 50 / 900; // Tiles: 900px -> 50px (12x12 grid)
 const PLAYER_SCALE = 50 / 900; // Player: 900px -> 50px (fills the tile)
-const ENEMY_SCALE = 42 / 900; // Enemy: 900px -> 42px
+const ENEMY_SCALE = 70 / 900; // Enemy: 900px -> 70px (larger for better visibility)
 const ITEM_SCALE = 30 / 900; // Items: 900px -> 30px (smaller pickup items)
 const BOSS_SCALE = 90 / 900; // Boss: 900px -> 90px (almost 2 tiles)
 
@@ -262,7 +262,17 @@ export class DungeonScene extends Phaser.Scene {
     this.currentRoom.enemies.forEach((enemy, i) => {
       const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
-      const enemyType = enemyTypes[i % enemyTypes.length];
+
+      // Determine visual enemy type from the enemy's name (not spawn index!)
+      // This ensures correct visuals even after enemies are removed from the array
+      const enemyName = enemy.name.toLowerCase();
+      let enemyType = enemyTypes[i % enemyTypes.length]; // fallback
+      for (const type of enemyTypes) {
+        if (enemyName.includes(type)) {
+          enemyType = type;
+          break;
+        }
+      }
 
       // Check if enemy has combat animations (attack, hit, death) - not idle
       const hasAnimations = this.textures.exists(`${enemyType}-attack`);
@@ -270,7 +280,9 @@ export class DungeonScene extends Phaser.Scene {
       // Always use static sprite for idle state
       const key = `enemy-${enemyType}`;
       const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
-      this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations });
+      // CRITICAL: Keep original enemy ID and name - don't overwrite!
+      // This ensures removeEnemyFromLayout can find the correct enemy
+      this.enemies.push({ sprite, data: enemy, hasAnimations });
     });
   }
 
