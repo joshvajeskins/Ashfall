@@ -137,6 +137,32 @@ module ashfall::enemies {
         }
     }
 
+    /// Set enemy health to a specific value (for resuming fled combats)
+    public fun set_health(enemy: Enemy, new_health: u64): Enemy {
+        Enemy {
+            id: enemy.id,
+            name: enemy.name,
+            health: new_health,
+            max_health: enemy.max_health,
+            attack: enemy.attack,
+            defense: enemy.defense,
+            exp_reward: enemy.exp_reward,
+            loot_tier: enemy.loot_tier,
+            floor_level: enemy.floor_level
+        }
+    }
+
+    /// Get enemy type ID (used for storing fled enemy state)
+    public fun get_type_id(enemy: &Enemy): u8 {
+        // Derive type from floor level and stats
+        if (enemy.max_health == 500) { 5 }  // boss
+        else if (enemy.max_health == 200) { 4 }  // lich
+        else if (enemy.max_health == 120) { 3 }  // vampire
+        else if (enemy.max_health == 80) { 2 }  // ghoul
+        else if (enemy.max_health == 50) { 1 }  // zombie
+        else { 0 }  // skeleton
+    }
+
     // =============================================
     // GETTERS
     // =============================================

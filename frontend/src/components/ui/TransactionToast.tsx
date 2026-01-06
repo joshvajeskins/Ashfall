@@ -48,35 +48,41 @@ export function TransactionToast() {
               {notification.action}
             </span>
             <span style={{ fontSize: 12, opacity: 0.8 }}>
-              {truncateHash(notification.txHash)}
+              {notification.status === 'submitting'
+                ? 'Submitting...'
+                : notification.txHash
+                  ? truncateHash(notification.txHash)
+                  : 'Processing...'}
             </span>
           </div>
-          <button
-            onClick={() => window.open(getExplorerUrl(notification.txHash), '_blank')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 28,
-              height: 28,
-              background: 'rgba(255,215,0,0.15)',
-              border: '1px solid #4a2f1a',
-              borderRadius: 4,
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(255,215,0,0.3)';
-              e.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(255,215,0,0.15)';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-            title="View on Explorer"
-          >
-            <ExternalLinkIcon />
-          </button>
+          {notification.txHash && (
+            <button
+              onClick={() => window.open(getExplorerUrl(notification.txHash), '_blank')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                background: 'rgba(255,215,0,0.15)',
+                border: '1px solid #4a2f1a',
+                borderRadius: 4,
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255,215,0,0.3)';
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255,215,0,0.15)';
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+              title="View on Explorer"
+            >
+              <ExternalLinkIcon />
+            </button>
+          )}
           <button
             onClick={() => removeTransaction(notification.id)}
             style={{
@@ -115,7 +121,31 @@ export function TransactionToast() {
   );
 }
 
-function StatusIcon({ status }: { status: 'pending' | 'success' | 'error' }) {
+function StatusIcon({ status }: { status: 'submitting' | 'pending' | 'success' | 'error' }) {
+  // Submitting: Pulsing dot (before txHash is available)
+  if (status === 'submitting') {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="6" fill="#ffd700" opacity="0.3" />
+        <circle cx="12" cy="12" r="4" fill="#ffd700">
+          <animate
+            attributeName="r"
+            values="4;6;4"
+            dur="1s"
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="opacity"
+            values="1;0.5;1"
+            dur="1s"
+            repeatCount="indefinite"
+          />
+        </circle>
+      </svg>
+    );
+  }
+
+  // Pending: Spinning loader (txHash exists, waiting for confirmation)
   if (status === 'pending') {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffd700">
@@ -143,6 +173,7 @@ function StatusIcon({ status }: { status: 'pending' | 'success' | 'error' }) {
     );
   }
 
+  // Success: Green checkmark
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e">
       <circle cx="12" cy="12" r="10" strokeWidth="2" />

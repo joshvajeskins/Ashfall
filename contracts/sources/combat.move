@@ -38,6 +38,9 @@ module ashfall::combat {
     const HEAVY_ATTACK_MANA: u64 = 20;
     const HEAL_MANA: u64 = 30;
 
+    // Mana restore on defend
+    const DEFEND_MANA_RESTORE: u64 = 10;
+
     // Error codes for new actions
     const E_NOT_ENOUGH_MANA: u64 = 10;
 
@@ -54,6 +57,25 @@ module ashfall::combat {
         combats: SmartTable<address, CombatState>
     }
 
+    /// Key for fled enemies: player address + floor + room_id
+    struct FledEnemyKey has copy, drop, store {
+        player: address,
+        floor: u64,
+        room_id: u64
+    }
+
+    /// Fled enemies registry - stores enemy health when player flees
+    struct FledEnemiesRegistry has key {
+        enemies: SmartTable<FledEnemyKey, FledEnemyState>
+    }
+
+    /// State of an enemy the player fled from
+    struct FledEnemyState has copy, drop, store {
+        enemy_type: u8,
+        current_health: u64,
+        max_health: u64
+    }
+
     fun init_module(account: &signer) {
         let deployer = signer::address_of(account);
         move_to(account, ServerConfig {
@@ -61,6 +83,9 @@ module ashfall::combat {
         });
         move_to(account, CombatRegistry {
             combats: smart_table::new()
+        });
+        move_to(account, FledEnemiesRegistry {
+            enemies: smart_table::new()
         });
     }
 
@@ -81,6 +106,16 @@ module ashfall::combat {
         });
     }
 
+    /// Initialize the fled enemies registry. Call once after upgrade.
+    public entry fun init_fled_registry(admin: &signer) {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == @ashfall, E_UNAUTHORIZED);
+        assert!(!exists<FledEnemiesRegistry>(@ashfall), E_ALREADY_IN_COMBAT);
+        move_to(admin, FledEnemiesRegistry {
+            enemies: smart_table::new()
+        });
+    }
+
     fun is_authorized_server(addr: address): bool acquires ServerConfig {
         let config = borrow_global<ServerConfig>(@ashfall);
         vector::contains(&config.authorized_servers, &addr)
@@ -98,6 +133,7 @@ module ashfall::combat {
         is_active: bool,
         started_at: u64,
         floor: u64,
+        room_id: u64,
         last_damage_dealt: u64,
         last_damage_taken: u64,
         last_was_crit: bool,
@@ -152,7 +188,9 @@ module ashfall::combat {
 
     #[event]
     struct PlayerDefended has drop, store {
-        player: address
+        player: address,
+        mana_restored: u64,
+        new_mana: u64
     }
 
     #[event]
@@ -185,19 +223,34 @@ module ashfall::combat {
 
     /// Start combat with a specific enemy type. Server-only.
     /// enemy_type: 0=skeleton, 1=zombie, 2=ghoul, 3=vampire, 4=lich, 5=boss
+    /// room_id: Used to track fled enemies - same room means same enemy with preserved health
     public entry fun start_combat(
         server: &signer,
         player: address,
         enemy_type: u8,
-        floor: u64
-    ) acquires ServerConfig, CombatRegistry {
+        floor: u64,
+        room_id: u64
+    ) acquires ServerConfig, CombatRegistry, FledEnemiesRegistry {
         let server_addr = signer::address_of(server);
         assert!(is_authorized_server(server_addr), E_UNAUTHORIZED);
         assert!(hero::character_exists(player), E_NO_CHARACTER);
         assert!(hero::is_character_alive(player), E_CHARACTER_DEAD);
 
-        // Spawn enemy based on type
-        let enemy = spawn_enemy_by_type(enemy_type);
+        // Check for fled enemy with preserved health
+        let fled_registry = borrow_global_mut<FledEnemiesRegistry>(@ashfall);
+        let fled_key = FledEnemyKey { player, floor, room_id };
+        let (enemy, enemy_health_for_event) = if (smart_table::contains(&fled_registry.enemies, fled_key)) {
+            // Resume combat with fled enemy's remaining health
+            let fled_state = smart_table::remove(&mut fled_registry.enemies, fled_key);
+            let fresh_enemy = spawn_enemy_by_type(fled_state.enemy_type);
+            let damaged_enemy = enemies::set_health(fresh_enemy, fled_state.current_health);
+            (damaged_enemy, fled_state.current_health)
+        } else {
+            // Spawn fresh enemy
+            let fresh_enemy = spawn_enemy_by_type(enemy_type);
+            let health = enemies::get_health(&fresh_enemy);
+            (fresh_enemy, health)
+        };
 
         let now = timestamp::now_seconds();
 
@@ -218,6 +271,7 @@ module ashfall::combat {
             combat.is_active = true;
             combat.started_at = now;
             combat.floor = floor;
+            combat.room_id = room_id;
             combat.last_damage_dealt = 0;
             combat.last_damage_taken = 0;
             combat.last_was_crit = false;
@@ -233,6 +287,7 @@ module ashfall::combat {
                 is_active: true,
                 started_at: now,
                 floor,
+                room_id,
                 last_damage_dealt: 0,
                 last_damage_taken: 0,
                 last_was_crit: false,
@@ -249,7 +304,7 @@ module ashfall::combat {
         event::emit(CombatStarted {
             player,
             enemy_name: *std::string::bytes(enemies::get_name(&enemy_for_event)),
-            enemy_health: enemies::get_health(&enemy_for_event),
+            enemy_health: enemy_health_for_event,
             floor
         });
     }
@@ -272,7 +327,7 @@ module ashfall::combat {
     public entry fun player_attack(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatRegistry {
+    ) acquires CombatRegistry, FledEnemiesRegistry {
         let player = signer::address_of(player_signer);
         let registry = borrow_global_mut<CombatRegistry>(@ashfall);
         assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
@@ -303,6 +358,10 @@ module ashfall::combat {
         combat.last_was_crit = was_crit;
         combat.turn_count = combat.turn_count + 1;
 
+        // Capture floor and room_id before we emit events
+        let floor = combat.floor;
+        let room_id = combat.room_id;
+
         event::emit(PlayerAttacked {
             player,
             damage: final_damage,
@@ -312,6 +371,13 @@ module ashfall::combat {
         });
 
         if (enemy_killed) {
+            // Clear any fled enemy entry for this room
+            let fled_registry = borrow_global_mut<FledEnemiesRegistry>(@ashfall);
+            let fled_key = FledEnemyKey { player, floor, room_id };
+            if (smart_table::contains(&fled_registry.enemies, fled_key)) {
+                smart_table::remove(&mut fled_registry.enemies, fled_key);
+            };
+
             // Combat ends - player wins
             let xp = enemies::get_exp_reward(&combat.enemy);
             hero::add_experience_to_player(player, xp);
@@ -428,10 +494,11 @@ module ashfall::combat {
     // =============================================
 
     /// Player attempts to flee. 50% base chance + agility bonus.
+    /// On success, stores enemy health for persistence when player returns.
     public entry fun flee_combat(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatRegistry {
+    ) acquires CombatRegistry, FledEnemiesRegistry {
         let player = signer::address_of(player_signer);
         let registry = borrow_global_mut<CombatRegistry>(@ashfall);
         assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
@@ -450,6 +517,34 @@ module ashfall::combat {
         event::emit(PlayerFled { player, success });
 
         if (success) {
+            // Store fled enemy state for health persistence
+            let fled_registry = borrow_global_mut<FledEnemiesRegistry>(@ashfall);
+            let fled_key = FledEnemyKey {
+                player,
+                floor: combat.floor,
+                room_id: combat.room_id
+            };
+
+            let enemy_health = enemies::get_health(&combat.enemy);
+            let enemy_max_health = enemies::get_max_health(&combat.enemy);
+            let enemy_type = enemies::get_type_id(&combat.enemy);
+
+            // Only store if enemy still alive (has health)
+            if (enemy_health > 0) {
+                if (smart_table::contains(&fled_registry.enemies, fled_key)) {
+                    // Update existing entry
+                    let fled_state = smart_table::borrow_mut(&mut fled_registry.enemies, fled_key);
+                    fled_state.current_health = enemy_health;
+                } else {
+                    // Add new entry
+                    smart_table::add(&mut fled_registry.enemies, fled_key, FledEnemyState {
+                        enemy_type,
+                        current_health: enemy_health,
+                        max_health: enemy_max_health
+                    });
+                };
+            };
+
             combat.is_active = false;
             event::emit(CombatEnded {
                 player,
@@ -464,10 +559,11 @@ module ashfall::combat {
     }
 
     // =============================================
-    // PLAYER DEFEND - Reduces next incoming damage by 50%
+    // PLAYER DEFEND - Reduces next incoming damage by 50% + restores mana
     // =============================================
 
     /// Player defends, reducing next enemy attack damage by 50%.
+    /// Also restores 10 mana as a reward for defensive play.
     public entry fun player_defend(
         player_signer: &signer
     ) acquires CombatRegistry {
@@ -483,7 +579,10 @@ module ashfall::combat {
         combat.turn_count = combat.turn_count + 1;
         combat.current_turn = TURN_ENEMY;
 
-        event::emit(PlayerDefended { player });
+        // Restore mana on defend (reward for defensive play)
+        let (mana_restored, new_mana) = hero::restore_mana_from_player(player, DEFEND_MANA_RESTORE);
+
+        event::emit(PlayerDefended { player, mana_restored, new_mana });
     }
 
     // =============================================
@@ -494,7 +593,7 @@ module ashfall::combat {
     public entry fun player_heavy_attack(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatRegistry {
+    ) acquires CombatRegistry, FledEnemiesRegistry {
         let player = signer::address_of(player_signer);
         let registry = borrow_global_mut<CombatRegistry>(@ashfall);
         assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
@@ -540,6 +639,10 @@ module ashfall::combat {
         combat.turn_count = combat.turn_count + 1;
         combat.enemy_is_defending = false; // Reset enemy defend
 
+        // Capture floor and room_id before we emit events
+        let floor = combat.floor;
+        let room_id = combat.room_id;
+
         event::emit(PlayerHeavyAttacked {
             player,
             damage: actual_damage,
@@ -550,6 +653,13 @@ module ashfall::combat {
         });
 
         if (enemy_killed) {
+            // Clear any fled enemy entry for this room
+            let fled_registry = borrow_global_mut<FledEnemiesRegistry>(@ashfall);
+            let fled_key = FledEnemyKey { player, floor, room_id };
+            if (smart_table::contains(&fled_registry.enemies, fled_key)) {
+                smart_table::remove(&mut fled_registry.enemies, fled_key);
+            };
+
             let xp = enemies::get_exp_reward(&combat.enemy);
             hero::add_experience_to_player(player, xp);
             combat.is_active = false;

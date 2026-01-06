@@ -25,6 +25,7 @@ export function DungeonBridge() {
     triggerCompleteBoss,
     triggerPlayerDeath,
     triggerExitDungeon,
+    triggerTransferFloorLoot,
     isPending,
   } = useDungeonTransaction();
 
@@ -50,6 +51,7 @@ export function DungeonBridge() {
 
   // Handle floor complete request
   // Called when player exits a floor via the floor exit door
+  // Also transfers pending loot to stash for mid-dungeon safety
   const handleFloorComplete = useCallback(
     async (data: { floor: number; enemiesKilled?: number; xpEarned?: number }) => {
       console.log('[DungeonBridge] Completing floor on-chain:', data);
@@ -62,11 +64,19 @@ export function DungeonBridge() {
 
       if (result.success) {
         console.log('[DungeonBridge] Floor complete tx success:', result.txHash);
+
+        // Transfer floor loot to stash for safety
+        const lootResult = await triggerTransferFloorLoot();
+        if (lootResult.success) {
+          console.log('[DungeonBridge] Floor loot transferred to stash:', lootResult.txHash);
+        } else {
+          console.warn('[DungeonBridge] Failed to transfer floor loot:', lootResult.error);
+        }
       } else {
         console.error('[DungeonBridge] Failed to complete floor:', result.error);
       }
     },
-    [triggerCompleteFloor]
+    [triggerCompleteFloor, triggerTransferFloorLoot]
   );
 
   // Handle boss defeat request

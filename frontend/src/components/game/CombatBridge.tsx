@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 import { useCombatTransaction } from '@/hooks/useCombatTransaction';
 
@@ -30,17 +30,35 @@ export function CombatBridge() {
     isPending,
   } = useCombatTransaction();
 
+  // Guard against duplicate enemy attack requests
+  const enemyAttackInProgress = useRef(false);
+
   // Handle combat start request
   const handleCombatStartRequest = useCallback(
-    async (data: { enemyType: number; floor: number }) => {
+    async (data: { enemyType: number; floor: number; roomId: number }) => {
       console.log('[CombatBridge] Starting combat on-chain:', data);
 
-      const result = await initiateCombat(data.enemyType, data.floor);
+      // Reset enemy attack guard for new combat
+      enemyAttackInProgress.current = false;
+
+      const result = await initiateCombat(data.enemyType, data.floor, data.roomId);
 
       if (result.success) {
         gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
           action: 'start_combat',
           txHash: result.txHash,
+          enemyIntent: result.enemyIntent, // Pass on-chain intent
+          combatState: result.combatState, // Pass enemy health (for fled enemy persistence)
+        });
+      } else if (result.alreadyInCombat && result.combatState) {
+        // Already in combat - emit success with existing state to resume combat
+        console.log('[CombatBridge] Already in combat, resuming with existing state:', result.combatState);
+        gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+          action: 'start_combat',
+          txHash: 'resumed', // Indicate this is a resumed combat
+          enemyIntent: result.enemyIntent,
+          combatState: result.combatState,
+          resumed: true,
         });
       } else {
         gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
@@ -91,22 +109,34 @@ export function CombatBridge() {
     }
   }, [playerFlee]);
 
-  // Handle enemy attack request
+  // Handle enemy attack request - with deduplication guard
   const handleEnemyAttackRequest = useCallback(async () => {
+    // Prevent duplicate enemy attack requests
+    if (enemyAttackInProgress.current) {
+      console.log('[CombatBridge] Enemy attack already in progress, ignoring duplicate request');
+      return;
+    }
+
+    enemyAttackInProgress.current = true;
     console.log('[CombatBridge] Enemy attacking on-chain');
 
-    const result = await triggerEnemyAttack();
+    try {
+      const result = await triggerEnemyAttack();
 
-    if (result.success) {
-      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
-        action: 'enemy_attack',
-        txHash: result.txHash,
-      });
-    } else {
-      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
-        action: 'enemy_attack',
-        error: result.error,
-      });
+      if (result.success) {
+        gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+          action: 'enemy_attack',
+          txHash: result.txHash,
+          enemyIntent: result.enemyIntent, // Pass on-chain intent for next turn
+        });
+      } else {
+        gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+          action: 'enemy_attack',
+          error: result.error,
+        });
+      }
+    } finally {
+      enemyAttackInProgress.current = false;
     }
   }, [triggerEnemyAttack]);
 

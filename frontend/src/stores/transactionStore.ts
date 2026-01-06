@@ -4,12 +4,17 @@ export interface TransactionNotification {
   id: string;
   action: string;
   txHash: string;
-  status: 'pending' | 'success' | 'error';
+  status: 'submitting' | 'pending' | 'success' | 'error';
   timestamp: number;
 }
 
 interface TransactionStore {
   notifications: TransactionNotification[];
+  // New: Add notification immediately (before txHash is available)
+  addSubmittingTransaction: (action: string) => string;
+  // New: Update with txHash once we have it
+  updateTransactionHash: (id: string, txHash: string) => void;
+  // Legacy: Add pending transaction (with txHash)
   addPendingTransaction: (action: string, txHash: string) => string;
   confirmTransaction: (id: string) => void;
   failTransaction: (id: string) => void;
@@ -20,7 +25,7 @@ interface TransactionStore {
 const EXPLORER_BASE_URL = 'https://explorer.movementnetwork.xyz/txn';
 const RPC_URL = 'https://testnet.movementnetwork.xyz/v1';
 
-export const getExplorerUrl = (txHash: string) => `${EXPLORER_BASE_URL}/${txHash}?network=testnet`;
+export const getExplorerUrl = (txHash: string) => `${EXPLORER_BASE_URL}/${txHash}?network=bardock+testnet`;
 
 export const truncateHash = (hash: string) => {
   if (hash.length <= 16) return hash;
@@ -51,6 +56,33 @@ export async function waitForTransaction(txHash: string): Promise<boolean> {
 export const useTransactionStore = create<TransactionStore>((set) => ({
   notifications: [],
 
+  // Add notification immediately when action starts (before txHash)
+  addSubmittingTransaction: (action) => {
+    const id = crypto.randomUUID();
+    set((state) => ({
+      notifications: [
+        ...state.notifications,
+        {
+          id,
+          action,
+          txHash: '', // No hash yet
+          status: 'submitting',
+          timestamp: Date.now(),
+        },
+      ],
+    }));
+    return id;
+  },
+
+  // Update notification with txHash once transaction is submitted
+  updateTransactionHash: (id, txHash) =>
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === id ? { ...n, txHash, status: 'pending' as const } : n
+      ),
+    })),
+
+  // Legacy: Add pending transaction (with txHash already known)
   addPendingTransaction: (action, txHash) => {
     const id = crypto.randomUUID();
     set((state) => ({

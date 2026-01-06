@@ -14,7 +14,7 @@ export const MOVEMENT_TESTNET_CONFIG = {
   name: 'Movement Testnet',
   chainId: 177,
   rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
-  indexerUrl: 'https://indexer.testnet.movementnetwork.xyz/v1/graphql',
+  indexerUrl: 'https://hasura.testnet.movementnetwork.xyz/v1/graphql',
 };
 
 /**

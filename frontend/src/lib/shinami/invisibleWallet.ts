@@ -150,11 +150,11 @@ export async function executeAuthorizedDungeonAction(
 }
 
 /**
- * Execute a server-authorized combat action
- * Used for starting combat and enemy attacks (server-controlled)
+ * Execute a server-authorized combat/dungeon action
+ * Used for starting combat, enemy attacks, and dungeon operations (server-controlled)
  */
 export async function executeAuthorizedCombatAction(
-  action: 'start_combat' | 'enemy_attack',
+  action: 'start_combat' | 'enemy_attack' | 'transfer_floor_loot',
   playerAddress: string,
   additionalArgs: (string | number)[] = []
 ): Promise<{ hash: string; success: boolean }> {
@@ -164,11 +164,15 @@ export async function executeAuthorizedCombatAction(
   const functionMap: Record<string, { fn: string; args: (string | number)[] }> = {
     start_combat: {
       fn: `${MODULES.combat}::start_combat`,
-      args: [playerAddress, ...additionalArgs], // player, enemy_type, floor
+      args: [playerAddress, ...additionalArgs], // player, enemy_type, floor, room_id
     },
     enemy_attack: {
       fn: `${MODULES.combat}::enemy_attack`,
       args: [playerAddress, seed], // player, seed
+    },
+    transfer_floor_loot: {
+      fn: `${MODULES.dungeon}::transfer_floor_loot`,
+      args: [playerAddress], // player
     },
   };
 

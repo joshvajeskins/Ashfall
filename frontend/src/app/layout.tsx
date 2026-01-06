@@ -18,9 +18,33 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  title: 'Ashfall - Roguelike Dungeon Crawler',
+  title: 'Ashfall - Roguelike Dungeon Crawler on Movement',
   description:
-    'A browser-based roguelike dungeon crawler with on-chain item ownership built on Movement.',
+    'A permadeath roguelike dungeon crawler with true on-chain item ownership. Every item is an NFT. Death means losing your gear forever. Built on Movement Network.',
+  keywords: ['roguelike', 'dungeon crawler', 'blockchain game', 'NFT', 'Movement Network', 'web3 game', 'permadeath'],
+  authors: [{ name: 'Ashfall Team' }],
+  openGraph: {
+    title: 'Ashfall - Roguelike Dungeon Crawler',
+    description: 'A permadeath roguelike where every item is on-chain. Death means losing your gear forever. Defeat the Dungeon Lord on Floor 5 to claim legendary loot!',
+    type: 'website',
+    images: [
+      {
+        url: '/ashfall-logo.png',
+        width: 512,
+        height: 512,
+        alt: 'Ashfall Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Ashfall - Roguelike Dungeon Crawler',
+    description: 'A permadeath roguelike where every item is on-chain. Death means losing your gear forever!',
+    images: ['/ashfall-logo.png'],
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
 // Fixed game canvas dimensions - larger to fit UI elements

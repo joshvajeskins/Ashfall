@@ -16,7 +16,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'overview',
     title: 'Welcome to Ashfall',
-    icon: '/assets/ui/icons/icon-scroll.png',
+    icon: '/assets/environment/door.png',
     content: (
       <div className="space-y-4">
         <p className="text-gray-300">
@@ -343,7 +343,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
   {
     id: 'leveling',
     title: 'Leveling Up',
-    icon: '/assets/ui/icons/icon-xp.png',
+    icon: '/assets/items/gold.png',
     content: (
       <div className="space-y-3">
         <p className="text-gray-300 text-sm">

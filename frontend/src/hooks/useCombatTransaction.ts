@@ -31,6 +31,10 @@ export interface CombatResult {
     isActive: boolean;
     enemyKilled: boolean;
   };
+  // Enemy intent for next turn (from on-chain state)
+  enemyIntent?: number;
+  // Already in combat - need to resume
+  alreadyInCombat?: boolean;
 }
 
 /**
@@ -46,11 +50,22 @@ export function useCombatTransaction() {
   const { signRawHash } = useSignRawHash();
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
-    useTransactionStore();
+  const {
+    addSubmittingTransaction,
+    updateTransactionHash,
+    confirmTransaction,
+    failTransaction,
+    removeTransaction,
+  } = useTransactionStore();
 
-  const addTransaction = (action: string, txHash: string) => {
-    const id = addPendingTransaction(action, txHash);
+  // Show notification immediately, then update with txHash when available
+  const startTransaction = (action: string) => {
+    return addSubmittingTransaction(action);
+  };
+
+  // Update notification with txHash and start polling for confirmation
+  const completeTransaction = (id: string, txHash: string) => {
+    updateTransactionHash(id, txHash);
     waitForTransaction(txHash).then((success) => {
       if (success) {
         confirmTransaction(id);
@@ -60,18 +75,19 @@ export function useCombatTransaction() {
         setTimeout(() => removeTransaction(id), 6000);
       }
     });
-    return id;
   };
 
   const movementWallet = getMovementWallet(user);
 
   /**
    * Start combat - Server-side (invisible wallet)
+   * Returns initial enemy intent and health from on-chain state
    */
   const initiateCombat = useCallback(
     async (
       enemyType: keyof typeof ENEMY_TYPES | number,
-      floor: number
+      floor: number,
+      roomId: number = 0
     ): Promise<CombatResult> => {
       if (!movementWallet) {
         return { success: false, error: 'Wallet not connected' };
@@ -80,21 +96,68 @@ export function useCombatTransaction() {
       setIsPending(true);
       setLastError(null);
 
+      // Show notification immediately
+      const txId = startTransaction('Combat Started');
+
       try {
-        const result = await startCombat(movementWallet.address, enemyType, floor);
+        const result = await startCombat(movementWallet.address, enemyType, floor, roomId);
         if (result.success && result.txHash) {
-          addTransaction('Combat Started', result.txHash);
+          completeTransaction(txId, result.txHash);
+        } else {
+          // Failed - update notification
+          failTransaction(txId);
+          setTimeout(() => removeTransaction(txId), 4000);
         }
-        return result;
+
+        // Handle already in combat - return existing state for resumption
+        if (result.alreadyInCombat && result.combatState) {
+          // Fetch enemy intent for the existing combat
+          let enemyIntent = 0;
+          try {
+            const [intent] = await combatService.getEnemyIntent(movementWallet.address);
+            enemyIntent = intent;
+          } catch {
+            // Use default intent
+          }
+
+          return {
+            success: false,
+            error: result.error,
+            alreadyInCombat: true,
+            enemyIntent,
+            combatState: {
+              enemyHealth: result.combatState.enemyHealth,
+              enemyMaxHealth: result.combatState.enemyMaxHealth,
+              isActive: result.combatState.isActive,
+              enemyKilled: false,
+            },
+          };
+        }
+
+        // Return with on-chain enemy intent and health
+        return {
+          success: result.success,
+          txHash: result.txHash,
+          error: result.error,
+          enemyIntent: result.enemyIntent,
+          combatState: result.enemyHealth !== undefined ? {
+            enemyHealth: result.enemyHealth,
+            enemyMaxHealth: result.enemyMaxHealth ?? 0,
+            isActive: true,
+            enemyKilled: false,
+          } : undefined,
+        };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to start combat';
         setLastError(errorMsg);
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
         return { success: false, error: errorMsg };
       } finally {
         setIsPending(false);
       }
     },
-    [movementWallet, addTransaction]
+    [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]
   );
 
   /**
@@ -107,6 +170,9 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Player Attack');
 
     try {
       // Generate random seed for crit calculation
@@ -158,7 +224,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Player Attack', result.hash);
+      completeTransaction(txId, result.hash);
 
       // Fetch combat state from chain to get actual enemy health
       try {
@@ -176,11 +242,13 @@ export function useCombatTransaction() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Attack failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Player flee - User wallet signs (gas sponsored)
@@ -192,6 +260,9 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Player Fled');
 
     try {
       const seed = Math.floor(Math.random() * 1000000);
@@ -239,16 +310,18 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Player Fled', result.hash);
+      completeTransaction(txId, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Flee failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Player defend - User wallet signs (gas sponsored)
@@ -261,6 +334,9 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Player Defended');
 
     try {
       const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
@@ -306,16 +382,18 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Player Defended', result.hash);
+      completeTransaction(txId, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Defend failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Player heavy attack - User wallet signs (gas sponsored)
@@ -328,6 +406,9 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Heavy Attack');
 
     try {
       const seed = Math.floor(Math.random() * 1000000);
@@ -375,7 +456,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Heavy Attack', result.hash);
+      completeTransaction(txId, result.hash);
 
       // Fetch combat state from chain to get actual enemy health
       try {
@@ -392,11 +473,13 @@ export function useCombatTransaction() {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Heavy attack failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Player heal - User wallet signs (gas sponsored)
@@ -409,6 +492,9 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Player Healed');
 
     try {
       const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
@@ -454,19 +540,22 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Player Healed', result.hash);
+      completeTransaction(txId, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Heal failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Enemy attack - Server-side (invisible wallet)
+   * Returns new enemy intent for next turn from on-chain state
    */
   const triggerEnemyAttack = useCallback(async (): Promise<CombatResult> => {
     if (!movementWallet) {
@@ -476,20 +565,34 @@ export function useCombatTransaction() {
     setIsPending(true);
     setLastError(null);
 
+    // Show notification immediately
+    const txId = startTransaction('Enemy Attack');
+
     try {
       const result = await executeEnemyAttack(movementWallet.address);
       if (result.success && result.txHash) {
-        addTransaction('Enemy Attack', result.txHash);
+        completeTransaction(txId, result.txHash);
+      } else {
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
       }
-      return result;
+      // Return with on-chain enemy intent for next turn
+      return {
+        success: result.success,
+        txHash: result.txHash,
+        error: result.error,
+        enemyIntent: result.enemyIntent,
+      };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Enemy attack failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet, addTransaction]);
+  }, [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Pickup item - User wallet signs (gas sponsored)
@@ -512,6 +615,10 @@ export function useCombatTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    const itemNames = ['Weapon', 'Armor', 'Accessory', 'Consumable'];
+    // Show notification immediately
+    const txId = startTransaction(`Picked Up ${itemNames[itemType] || 'Item'}`);
 
     try {
       const seed = Math.floor(Math.random() * 1000000);
@@ -587,17 +694,18 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
-      const itemNames = ['Weapon', 'Armor', 'Accessory', 'Consumable'];
-      addTransaction(`Picked Up ${itemNames[itemType] || 'Item'}`, result.hash);
+      completeTransaction(txId, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Pickup failed';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   return {
     initiateCombat,
