@@ -800,9 +800,10 @@ export class CombatScene extends Phaser.Scene {
     // Deduct mana locally
     this.character.mana -= MANA_COSTS.HEAVY_ATTACK;
 
-    // Calculate heavy damage (1.5x)
+    // Calculate heavy damage (1.5x) - INT contributes to heavy attack
     const result = this.calculateDamage(this.character, this.enemy);
-    const heavyDamage = Math.floor(result.damage * 1.5);
+    const intBonus = Math.floor(this.character.stats.intelligence / 2);
+    const heavyDamage = Math.floor((result.damage + intBonus) * 1.5);
 
     // Use on-chain enemy health if available, otherwise use local calculation
     if (combatState) {
@@ -907,9 +908,11 @@ export class CombatScene extends Phaser.Scene {
     this.isWaitingForTx = false;
     soundManager.play('levelUp'); // Use level up sound for heal
 
-    // Deduct mana and heal locally
+    // Deduct mana and heal locally - INT contributes to heal amount
+    // Heal = 30% + INT% of max HP (Mage: 45%, Warrior: 35%)
     this.character.mana -= MANA_COSTS.HEAL;
-    const healAmount = Math.floor(this.character.maxHealth * 0.3);
+    const healPercent = 30 + this.character.stats.intelligence;
+    const healAmount = Math.floor(this.character.maxHealth * (healPercent / 100));
     const oldHealth = this.character.health;
     this.character.health = Math.min(this.character.health + healAmount, this.character.maxHealth);
     const actualHeal = this.character.health - oldHealth;
