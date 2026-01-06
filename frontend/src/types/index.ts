@@ -39,6 +39,9 @@ export interface Item {
   killCount: number;
   origin?: ItemOrigin;
   isEquipped?: boolean;
+  // Position in dungeon room (persisted to prevent respawning at new locations)
+  x?: number;
+  y?: number;
 }
 
 export interface Equipment {
@@ -83,6 +86,9 @@ export interface Enemy {
   xpReward?: number;
   lootTier?: number;
   isBoss?: boolean;
+  // Position in dungeon room (persisted to prevent respawning at new locations)
+  x?: number;
+  y?: number;
 }
 
 // Dungeon Types
