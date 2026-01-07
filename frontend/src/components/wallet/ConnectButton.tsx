@@ -1,8 +1,10 @@
 'use client';
 
-import { usePrivy } from '@privy-io/react-auth';
+import { usePrivy, useLogin } from '@privy-io/react-auth';
+import { useCreateWallet } from '@privy-io/react-auth/extended-chains';
 import { useEffect, useState, useRef } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
+import { createMovementWallet, getMovementWallet } from '@/lib/privy-movement';
 
 export function ConnectButton() {
   const hasPrivyConfig = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -23,19 +25,58 @@ export function ConnectButton() {
 }
 
 function PrivyConnectButton() {
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, logout, user } = usePrivy();
+  const { createWallet } = useCreateWallet();
   const { setWallet, setConnecting, disconnect } = useWalletStore();
   const [showDropdown, setShowDropdown] = useState(false);
+  const [isCreatingWallet, setIsCreatingWallet] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Get Movement wallet from user's linked accounts
+  const movementWallet = getMovementWallet(user);
+
+  const { login } = useLogin({
+    onComplete: async ({ user: completedUser }) => {
+      try {
+        setIsCreatingWallet(true);
+        await createMovementWallet(completedUser, createWallet);
+      } catch (error) {
+        console.error('Error creating wallet after login:', error);
+      } finally {
+        setIsCreatingWallet(false);
+      }
+    },
+    onError: (error) => {
+      console.error('Login failed:', error);
+      setConnecting(false);
+    },
+  });
 
   // Sync wallet state with Zustand store
   useEffect(() => {
-    if (authenticated && user?.wallet?.address) {
-      setWallet(user.wallet.address);
+    if (authenticated && movementWallet?.address) {
+      setWallet(movementWallet.address);
     } else if (!authenticated) {
       disconnect();
     }
-  }, [authenticated, user?.wallet?.address, setWallet, disconnect]);
+  }, [authenticated, movementWallet?.address, setWallet, disconnect]);
+
+  // Auto-create wallet if authenticated but no Movement wallet
+  useEffect(() => {
+    const ensureWallet = async () => {
+      if (authenticated && user && !movementWallet && !isCreatingWallet) {
+        setIsCreatingWallet(true);
+        try {
+          await createMovementWallet(user, createWallet);
+        } catch (error) {
+          console.error('Error auto-creating wallet:', error);
+        } finally {
+          setIsCreatingWallet(false);
+        }
+      }
+    };
+    ensureWallet();
+  }, [authenticated, user, movementWallet, createWallet, isCreatingWallet]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -73,9 +114,21 @@ function PrivyConnectButton() {
     );
   }
 
-  const displayAddress = user?.wallet?.address
-    ? `${user.wallet.address.slice(0, 6)}...${user.wallet.address.slice(-4)}`
-    : 'Connected';
+  if (isCreatingWallet) {
+    return (
+      <button
+        disabled
+        className="px-4 py-2 bg-zinc-800 text-zinc-400 rounded-lg border border-zinc-700 flex items-center gap-2"
+      >
+        <span className="animate-spin w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+        Creating Wallet...
+      </button>
+    );
+  }
+
+  const displayAddress = movementWallet?.address
+    ? `${movementWallet.address.slice(0, 6)}...${movementWallet.address.slice(-4)}`
+    : 'No Wallet';
 
   const handleDisconnect = () => {
     disconnect();
@@ -104,10 +157,13 @@ function PrivyConnectButton() {
       {showDropdown && (
         <div className="absolute right-0 mt-2 w-48 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-50">
           <div className="p-3 border-b border-zinc-700">
-            <p className="text-xs text-zinc-500">Connected as</p>
+            <p className="text-xs text-zinc-500">Movement Wallet</p>
             <p className="text-sm text-zinc-300 font-mono truncate">
-              {user?.wallet?.address}
+              {movementWallet?.address || 'Not created'}
             </p>
+            {user?.email?.address && (
+              <p className="text-xs text-zinc-500 mt-1">{user.email.address}</p>
+            )}
           </div>
           <button
             onClick={handleDisconnect}

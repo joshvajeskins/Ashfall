@@ -18,10 +18,11 @@ const CLASS_COLORS: Record<CharacterClass, string> = {
   Mage: 'border-blue-500 bg-blue-950/30',
 };
 
-const CLASS_ICONS: Record<CharacterClass, string> = {
-  Warrior: 'M12 2a2 2 0 012 2v1h3a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h3V4a2 2 0 012-2z',
-  Rogue: 'M12 2L4 6v12l8 4 8-4V6l-8-4zm0 2.5L17 7v6l-5 2.5L7 13V7l5-2.5z',
-  Mage: 'M12 3L4 9v12h16V9l-8-6zm0 2.5l6 4.5v8H6v-8l6-4.5z',
+// Character class images
+const CLASS_IMAGES: Record<CharacterClass, string> = {
+  Warrior: '/assets/characters/warrior.png',
+  Rogue: '/assets/characters/rogue.png',
+  Mage: '/assets/characters/mage.png',
 };
 
 export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
@@ -74,12 +75,15 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
                 `}
               >
                 <div className="flex items-start gap-3">
-                  <div className={`w-10 h-10 rounded-lg bg-zinc-800 flex items-center justify-center ${
-                    selectedClass === cls ? 'text-white' : 'text-zinc-400'
+                  <div className={`w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden border ${
+                    selectedClass === cls ? 'border-white' : 'border-zinc-700'
                   }`}>
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                      <path d={CLASS_ICONS[cls]} />
-                    </svg>
+                    <img
+                      src={CLASS_IMAGES[cls]}
+                      alt={cls}
+                      className="w-12 h-12 object-contain"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-white">{cls}</h3>

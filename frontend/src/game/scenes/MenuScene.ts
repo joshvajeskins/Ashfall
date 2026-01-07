@@ -32,12 +32,19 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private createBackground(): void {
-    // Dark gradient background
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2a, 0x1a1a2a, 1);
-    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    // Use pixel art background image if available
+    if (this.textures.exists('ui-background')) {
+      this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'ui-background')
+        .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+        .setAlpha(0.6);
+    } else {
+      // Fallback gradient background
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x0a0a0a, 0x0a0a0a, 0x1a1a2a, 0x1a1a2a, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
 
-    // Decorative elements
+    // Decorative ember particles
     for (let i = 0; i < 20; i++) {
       const x = Phaser.Math.Between(0, GAME_WIDTH);
       const y = Phaser.Math.Between(0, GAME_HEIGHT);
@@ -87,8 +94,9 @@ export class MenuScene extends Phaser.Scene {
   private showCharacterInfo(): void {
     if (!this.character) return;
 
-    // Character sprite (scaled up)
-    const sprite = this.add.image(0, -40, 'player').setScale(3);
+    // Character sprite based on class (scaled up)
+    const spriteKey = `player-${this.character.class.toLowerCase()}`;
+    const sprite = this.add.image(0, -40, spriteKey).setScale(3);
 
     // Character name and class
     const nameText = this.add.text(0, 20, `${this.character.class}`, {

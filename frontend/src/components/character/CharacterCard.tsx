@@ -8,16 +8,17 @@ interface CharacterCardProps {
   onEquipmentClick?: (slot: 'weapon' | 'armor' | 'accessory') => void;
 }
 
-const CLASS_ICONS: Record<string, string> = {
-  Warrior: 'M12 2a2 2 0 012 2v1h3a2 2 0 012 2v10a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2h3V4a2 2 0 012-2z',
-  Rogue: 'M12 2L4 6v12l8 4 8-4V6l-8-4zm0 2.5L17 7v6l-5 2.5L7 13V7l5-2.5z',
-  Mage: 'M12 3L4 9v12h16V9l-8-6zm0 2.5l6 4.5v8H6v-8l6-4.5z',
+// Character class images
+const CLASS_IMAGES: Record<string, string> = {
+  Warrior: '/assets/characters/warrior.png',
+  Rogue: '/assets/characters/rogue.png',
+  Mage: '/assets/characters/mage.png',
 };
 
 const CLASS_COLORS: Record<string, string> = {
-  Warrior: 'text-red-500',
-  Rogue: 'text-green-500',
-  Mage: 'text-blue-500',
+  Warrior: 'border-red-500',
+  Rogue: 'border-green-500',
+  Mage: 'border-blue-500',
 };
 
 function StatBar({ label, current, max, color }: {
@@ -63,10 +64,13 @@ export function CharacterCard({ character, onEquipmentClick }: CharacterCardProp
     <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className={`w-12 h-12 rounded-lg bg-zinc-800 flex items-center justify-center ${CLASS_COLORS[character.class]}`}>
-          <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-            <path d={CLASS_ICONS[character.class]} />
-          </svg>
+        <div className={`w-14 h-14 rounded-lg bg-zinc-800 border-2 ${CLASS_COLORS[character.class]} flex items-center justify-center overflow-hidden`}>
+          <img
+            src={CLASS_IMAGES[character.class]}
+            alt={character.class}
+            className="w-12 h-12 object-contain"
+            style={{ imageRendering: 'pixelated' }}
+          />
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
