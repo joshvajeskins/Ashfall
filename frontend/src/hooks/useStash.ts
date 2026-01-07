@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { useGameStore } from '@/stores/gameStore';
 import { stashService } from '@/lib/move/client';
-import type { Item, ItemType } from '@/types';
+import type { Item } from '@/types';
 
 const MAX_STASH_CAPACITY = 50;
 
@@ -36,21 +36,81 @@ export function useStash(): UseStashResult {
     setError(null);
 
     try {
-      const [stashResult, capacityResult] = await Promise.all([
-        stashService.getStash(address),
-        stashService.getStashCapacity(address).catch(() => [MAX_STASH_CAPACITY]),
-      ]);
+      // First check if stash exists
+      const [stashExists] = await stashService.stashExists(address);
 
-      if (stashResult && Array.isArray(stashResult)) {
-        const items = parseStashData(stashResult);
-        setStash(items);
-      } else {
+      if (!stashExists) {
         setStash([]);
+        setCapacity(MAX_STASH_CAPACITY);
+        return;
       }
 
-      if (capacityResult && Array.isArray(capacityResult)) {
-        setCapacity(Number(capacityResult[0]) || MAX_STASH_CAPACITY);
+      // Fetch stash counts
+      const [weapons, armors, accessories, consumables, gold] = await stashService.getStashCounts(address);
+      const [remainingCapacity] = await stashService.getStashCapacityRemaining(address);
+
+      // For now, create placeholder items based on counts
+      // Full item data would require additional view functions or indexer
+      const items: Item[] = [];
+
+      // Add weapon placeholders
+      for (let i = 0; i < Number(weapons); i++) {
+        items.push({
+          id: i,
+          name: `Weapon ${i + 1}`,
+          rarity: 'Common',
+          type: 'Weapon',
+          stats: { damage: 10 },
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+        });
       }
+
+      // Add armor placeholders
+      for (let i = 0; i < Number(armors); i++) {
+        items.push({
+          id: 100 + i,
+          name: `Armor ${i + 1}`,
+          rarity: 'Common',
+          type: 'Armor',
+          stats: { defense: 5 },
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+        });
+      }
+
+      // Add accessory placeholders
+      for (let i = 0; i < Number(accessories); i++) {
+        items.push({
+          id: 200 + i,
+          name: `Accessory ${i + 1}`,
+          rarity: 'Common',
+          type: 'Accessory',
+          stats: {},
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+        });
+      }
+
+      // Add consumable placeholders
+      for (let i = 0; i < Number(consumables); i++) {
+        items.push({
+          id: 300 + i,
+          name: `Consumable ${i + 1}`,
+          rarity: 'Common',
+          type: 'Consumable',
+          stats: { health: 50 },
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+        });
+      }
+
+      setStash(items);
+      setCapacity(MAX_STASH_CAPACITY - Number(remainingCapacity));
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch stash';
       if (errorMessage.includes('not found') || errorMessage.includes('RESOURCE_NOT_FOUND')) {
@@ -80,77 +140,5 @@ export function useStash(): UseStashResult {
     isLoading,
     error,
     refetch: fetchStash,
-  };
-}
-
-// Parse on-chain stash data into Item objects
-function parseStashData(data: unknown[]): Item[] {
-  return data.map((item, index) => {
-    if (typeof item === 'object' && item !== null) {
-      const rawItem = item as Record<string, unknown>;
-      return {
-        id: Number(rawItem.id) || index,
-        name: String(rawItem.name || 'Unknown Item'),
-        rarity: parseRarity(rawItem.rarity),
-        type: parseItemType(rawItem.type),
-        stats: parseStats(rawItem.stats),
-        enchantments: [],
-        durability: Number(rawItem.durability) || 100,
-        killCount: Number(rawItem.kill_count) || 0,
-        origin: rawItem.origin ? {
-          dungeonId: Number((rawItem.origin as Record<string, unknown>).dungeon_id) || 0,
-          floor: Number((rawItem.origin as Record<string, unknown>).floor) || 0,
-        } : undefined,
-      };
-    }
-    return createDefaultItem(index);
-  });
-}
-
-function parseRarity(value: unknown): Item['rarity'] {
-  const rarities: Item['rarity'][] = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
-  if (typeof value === 'number' && value >= 0 && value < rarities.length) {
-    return rarities[value];
-  }
-  if (typeof value === 'string' && rarities.includes(value as Item['rarity'])) {
-    return value as Item['rarity'];
-  }
-  return 'Common';
-}
-
-function parseItemType(value: unknown): ItemType {
-  const types: ItemType[] = ['Weapon', 'Armor', 'Accessory', 'Consumable'];
-  if (typeof value === 'number' && value >= 0 && value < types.length) {
-    return types[value];
-  }
-  if (typeof value === 'string' && types.includes(value as ItemType)) {
-    return value as ItemType;
-  }
-  return 'Consumable';
-}
-
-function parseStats(value: unknown): Item['stats'] {
-  if (typeof value === 'object' && value !== null) {
-    const stats = value as Record<string, unknown>;
-    return {
-      damage: stats.damage ? Number(stats.damage) : undefined,
-      defense: stats.defense ? Number(stats.defense) : undefined,
-      health: stats.health ? Number(stats.health) : undefined,
-      mana: stats.mana ? Number(stats.mana) : undefined,
-    };
-  }
-  return {};
-}
-
-function createDefaultItem(id: number): Item {
-  return {
-    id,
-    name: 'Unknown Item',
-    rarity: 'Common',
-    type: 'Consumable',
-    stats: {},
-    enchantments: [],
-    durability: 100,
-    killCount: 0,
   };
 }

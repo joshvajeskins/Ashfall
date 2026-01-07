@@ -37,7 +37,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
       try {
         // Build the transaction payload
         const payload = {
-          function: `${CONTRACT_ADDRESS}::hero::initialize_player`,
+          function: `${CONTRACT_ADDRESS}::hero::create_character`,
           typeArguments: [],
           functionArguments: [CLASS_TO_ENUM[characterClass]],
         };

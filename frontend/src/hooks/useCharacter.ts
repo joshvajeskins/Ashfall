@@ -42,36 +42,52 @@ export function useCharacter(): UseCharacterResult {
     setError(null);
 
     try {
-      const result = await heroService.getPlayer(address);
+      // First check if character exists
+      const [exists] = await heroService.characterExists(address);
 
-      if (result && Array.isArray(result) && result.length > 0) {
-        // Parse the on-chain data into Character type
-        const [level, exp, hp, maxHp, mana, maxMana, str, agi, int, isAlive] = result as number[];
-
-        const characterData: Character = {
-          id: 1, // Single character per wallet
-          owner: address,
-          class: 'Warrior', // Will need to fetch class separately or store it
-          level: Number(level) || 1,
-          experience: Number(exp) || 0,
-          health: Number(hp) || 100,
-          maxHealth: Number(maxHp) || 100,
-          mana: Number(mana) || 50,
-          maxMana: Number(maxMana) || 50,
-          stats: {
-            strength: Number(str) || 10,
-            agility: Number(agi) || 5,
-            intelligence: Number(int) || 3,
-          },
-          equipment: {},
-          isAlive: Boolean(isAlive),
-        };
-
-        setCharacter(characterData);
-      } else {
-        // No character exists
+      if (!exists) {
         setCharacter(null);
+        return;
       }
+
+      // Fetch all character data in parallel
+      const [statsResult, baseStatsResult, classResult] = await Promise.all([
+        heroService.getCharacterStats(address),
+        heroService.getBaseStats(address),
+        heroService.getCharacterClass(address),
+      ]);
+
+      const [level, exp, hp, maxHp, mana, maxMana, currentFloor, isAlive] = statsResult;
+      const [strength, agility, intelligence] = baseStatsResult;
+      const [classId] = classResult;
+
+      // Map class ID to class name
+      const classMap: Record<number, CharacterClass> = {
+        0: 'Warrior',
+        1: 'Rogue',
+        2: 'Mage',
+      };
+
+      const characterData: Character = {
+        id: 1, // Single character per wallet
+        owner: address,
+        class: classMap[classId] || 'Warrior',
+        level: Number(level) || 1,
+        experience: Number(exp) || 0,
+        health: Number(hp) || 100,
+        maxHealth: Number(maxHp) || 100,
+        mana: Number(mana) || 50,
+        maxMana: Number(maxMana) || 50,
+        stats: {
+          strength: Number(strength) || 10,
+          agility: Number(agility) || 5,
+          intelligence: Number(intelligence) || 3,
+        },
+        equipment: {},
+        isAlive: Boolean(isAlive),
+      };
+
+      setCharacter(characterData);
     } catch (err) {
       // Character doesn't exist or error fetching
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch character';
