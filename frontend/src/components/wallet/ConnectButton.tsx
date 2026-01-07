@@ -5,6 +5,7 @@ import { useCreateWallet } from '@privy-io/react-auth/extended-chains';
 import { useEffect, useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { createMovementWallet, getMovementWallet } from '@/lib/privy-movement';
+import { aptosClient } from '@/lib/move/client';
 import { Button } from '@/components/ui/Button';
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Copy, LogOut, ChevronDown, Wallet, Check } from 'lucide-react';
+import Avatar from 'boring-avatars';
 
 export function ConnectButton() {
   const hasPrivyConfig = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -37,6 +39,7 @@ function PrivyConnectButton() {
   const { setWallet, setConnecting, disconnect } = useWalletStore();
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [balance, setBalance] = useState<string | null>(null);
 
   const movementWallet = getMovementWallet(user);
 
@@ -80,6 +83,28 @@ function PrivyConnectButton() {
     };
     ensureWallet();
   }, [authenticated, user, movementWallet, createWallet, isCreatingWallet]);
+
+  // Fetch balance
+  useEffect(() => {
+    const fetchBalance = async () => {
+      if (movementWallet?.address) {
+        try {
+          const resources = await aptosClient.getAccountResource({
+            accountAddress: movementWallet.address,
+            resourceType: '0x1::coin::CoinStore<0x1::aptos_coin::AptosCoin>',
+          });
+          const coinValue = (resources as { coin: { value: string } }).coin.value;
+          const moveBalance = (Number(coinValue) / 1e8).toFixed(4);
+          setBalance(moveBalance);
+        } catch {
+          setBalance('0.0000');
+        }
+      }
+    };
+    fetchBalance();
+    const interval = setInterval(fetchBalance, 30000);
+    return () => clearInterval(interval);
+  }, [movementWallet?.address]);
 
   const handleCopyAddress = async () => {
     if (movementWallet?.address) {
@@ -134,24 +159,51 @@ function PrivyConnectButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2">
-          <span className="size-2 bg-green-500 rounded-full" />
-          <span className="font-mono">{displayAddress}</span>
+        <Button variant="outline" className="gap-2 pl-2">
+          <Avatar
+            size={24}
+            name={movementWallet?.address || 'default'}
+            variant="beam"
+            colors={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']}
+          />
+          <div className="flex flex-col items-start">
+            <span className="font-mono text-sm">{displayAddress}</span>
+            <span className="text-xs text-muted-foreground">
+              {balance !== null ? `${balance} MOVE` : '...'}
+            </span>
+          </div>
           <ChevronDown className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
+      <DropdownMenuContent align="end" className="w-72">
         <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium">Movement Wallet</p>
-            <p className="text-xs text-muted-foreground font-mono truncate">
-              {movementWallet?.address || 'Not created'}
-            </p>
-            {user?.email?.address && (
-              <p className="text-xs text-muted-foreground">{user.email.address}</p>
-            )}
+          <div className="flex items-center gap-3">
+            <Avatar
+              size={40}
+              name={movementWallet?.address || 'default'}
+              variant="beam"
+              colors={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']}
+            />
+            <div className="flex flex-col space-y-1">
+              <p className="text-sm font-medium">Movement Wallet</p>
+              <p className="text-xs text-muted-foreground font-mono truncate max-w-[180px]">
+                {movementWallet?.address || 'Not created'}
+              </p>
+              {user?.email?.address && (
+                <p className="text-xs text-muted-foreground">{user.email.address}</p>
+              )}
+            </div>
           </div>
         </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <div className="px-2 py-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">Balance</span>
+            <span className="text-sm font-medium">
+              {balance !== null ? `${balance} MOVE` : 'Loading...'}
+            </span>
+          </div>
+        </div>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleCopyAddress} className="cursor-pointer">
           {copied ? (
