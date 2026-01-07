@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Copy, LogOut, ChevronDown, Wallet, Check } from 'lucide-react';
+import { Copy, LogOut, Wallet, Check } from 'lucide-react';
 import Avatar from 'boring-avatars';
 
 export function ConnectButton() {
@@ -159,7 +159,7 @@ function PrivyConnectButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2 pl-2">
+        <Button variant="outline" className="gap-2 pl-2 pr-3">
           <Avatar
             size={24}
             name={movementWallet?.address || 'default'}
@@ -172,7 +172,6 @@ function PrivyConnectButton() {
               {balance !== null ? `${balance} MOVE` : '...'}
             </span>
           </div>
-          <ChevronDown className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-72">
