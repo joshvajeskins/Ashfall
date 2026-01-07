@@ -37,14 +37,64 @@ export function useInventory(): UseInventoryResult {
     setError(null);
 
     try {
-      const result = await heroService.getInventory(address);
+      // Check if character exists first
+      const [exists] = await heroService.characterExists(address);
 
-      if (result && Array.isArray(result)) {
-        const items = parseInventoryData(result);
-        setInventory(items);
-      } else {
+      if (!exists) {
         setInventory([]);
+        return;
       }
+
+      // Get equipped items (inventory is equipment in this game model)
+      const [weaponId, armorId, accessoryId] = await heroService.getEquipmentIds(address);
+      const items: Item[] = [];
+
+      // Add equipped weapon if exists
+      if (Number(weaponId) > 0) {
+        items.push({
+          id: Number(weaponId),
+          name: `Equipped Weapon #${weaponId}`,
+          rarity: 'Common',
+          type: 'Weapon',
+          stats: { damage: 10 },
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+          isEquipped: true,
+        });
+      }
+
+      // Add equipped armor if exists
+      if (Number(armorId) > 0) {
+        items.push({
+          id: Number(armorId),
+          name: `Equipped Armor #${armorId}`,
+          rarity: 'Common',
+          type: 'Armor',
+          stats: { defense: 5 },
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+          isEquipped: true,
+        });
+      }
+
+      // Add equipped accessory if exists
+      if (Number(accessoryId) > 0) {
+        items.push({
+          id: Number(accessoryId),
+          name: `Equipped Accessory #${accessoryId}`,
+          rarity: 'Common',
+          type: 'Accessory',
+          stats: {},
+          enchantments: [],
+          durability: 100,
+          killCount: 0,
+          isEquipped: true,
+        });
+      }
+
+      setInventory(items);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch inventory';
       if (errorMessage.includes('not found') || errorMessage.includes('RESOURCE_NOT_FOUND')) {
@@ -92,80 +142,5 @@ export function useInventory(): UseInventoryResult {
     isLoading,
     error,
     refetch: fetchInventory,
-  };
-}
-
-// Parse on-chain inventory data into Item objects
-function parseInventoryData(data: unknown[]): Item[] {
-  // This will need to be adjusted based on actual on-chain data format
-  // For now, return mock data structure
-  return data.map((item, index) => {
-    if (typeof item === 'object' && item !== null) {
-      const rawItem = item as Record<string, unknown>;
-      return {
-        id: Number(rawItem.id) || index,
-        name: String(rawItem.name || 'Unknown Item'),
-        rarity: parseRarity(rawItem.rarity),
-        type: parseItemType(rawItem.type),
-        stats: parseStats(rawItem.stats),
-        enchantments: [],
-        durability: Number(rawItem.durability) || 100,
-        killCount: Number(rawItem.kill_count) || 0,
-        origin: rawItem.origin ? {
-          dungeonId: Number((rawItem.origin as Record<string, unknown>).dungeon_id) || 0,
-          floor: Number((rawItem.origin as Record<string, unknown>).floor) || 0,
-        } : undefined,
-        isEquipped: Boolean(rawItem.is_equipped),
-      };
-    }
-    return createDefaultItem(index);
-  });
-}
-
-function parseRarity(value: unknown): Item['rarity'] {
-  const rarities: Item['rarity'][] = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary'];
-  if (typeof value === 'number' && value >= 0 && value < rarities.length) {
-    return rarities[value];
-  }
-  if (typeof value === 'string' && rarities.includes(value as Item['rarity'])) {
-    return value as Item['rarity'];
-  }
-  return 'Common';
-}
-
-function parseItemType(value: unknown): ItemType {
-  const types: ItemType[] = ['Weapon', 'Armor', 'Accessory', 'Consumable'];
-  if (typeof value === 'number' && value >= 0 && value < types.length) {
-    return types[value];
-  }
-  if (typeof value === 'string' && types.includes(value as ItemType)) {
-    return value as ItemType;
-  }
-  return 'Consumable';
-}
-
-function parseStats(value: unknown): Item['stats'] {
-  if (typeof value === 'object' && value !== null) {
-    const stats = value as Record<string, unknown>;
-    return {
-      damage: stats.damage ? Number(stats.damage) : undefined,
-      defense: stats.defense ? Number(stats.defense) : undefined,
-      health: stats.health ? Number(stats.health) : undefined,
-      mana: stats.mana ? Number(stats.mana) : undefined,
-    };
-  }
-  return {};
-}
-
-function createDefaultItem(id: number): Item {
-  return {
-    id,
-    name: 'Unknown Item',
-    rarity: 'Common',
-    type: 'Consumable',
-    stats: {},
-    enchantments: [],
-    durability: 100,
-    killCount: 0,
   };
 }
