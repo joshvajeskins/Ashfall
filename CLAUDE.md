@@ -19,10 +19,26 @@ Structure from starter:
 **Note:** pixel-place repo is empty. Need to set up React + Phaser.js from scratch or use different starter.
 
 ## Git Configuration
+
+**Account:** joshvajeskins (Joshua)
 ```
-user.name: gabrielantonyxaviour
-user.email: gabrielantony56@gmail.com
+user.name: joshvajeskins
+user.email: joshvajeskinsweb3@gmail.com
 ```
+
+### Auto-Commit Rule
+**IMPORTANT:** After EVERY response that modifies code/files, you MUST run:
+```bash
+cd /Users/gabrielantonyxaviour/Documents/starters/movement/Ashfall && \
+git add -A && \
+git commit -m "$(cat <<'EOF'
+<concise description of changes>
+EOF
+)" && \
+git push
+```
+
+This ensures all changes are tracked and pushed to joshvajeskins/Ashfall.
 
 ---
 
