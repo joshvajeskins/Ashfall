@@ -24,6 +24,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    console.log('[MenuScene] create() called, character:', this.character);
     this.transitions = new TransitionManager(this);
     this.createBackground();
     this.createTitle();
@@ -140,6 +141,8 @@ export class MenuScene extends Phaser.Scene {
     const buttonY = 450;
     const buttonSpacing = 60;
 
+    console.log('[MenuScene] Creating buttons, character:', this.character, 'isAlive:', this.character?.isAlive);
+
     // Enter Dungeon button
     this.enterDungeonBtn = this.createButton(
       centerX,
@@ -148,6 +151,7 @@ export class MenuScene extends Phaser.Scene {
       this.character?.isAlive ?? false
     );
     this.enterDungeonBtn.on('pointerdown', () => {
+      console.log('[MenuScene] Enter Dungeon button clicked');
       soundManager.play('buttonClick');
       this.onEnterDungeon();
     });
@@ -232,6 +236,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private onEnterDungeon(): void {
+    console.log('[MenuScene] onEnterDungeon called, character:', this.character?.isAlive, 'isEnteringDungeon:', this.isEnteringDungeon);
     if (!this.character?.isAlive || this.isEnteringDungeon) return;
 
     this.isEnteringDungeon = true;
@@ -246,6 +251,7 @@ export class MenuScene extends Phaser.Scene {
 
     // Emit event for DungeonBridge to make the on-chain transaction
     // DungeonBridge will emit DUNGEON_ENTER with action='enter_dungeon' on success
+    console.log('[MenuScene] Emitting UI_ENTER_DUNGEON event');
     gameEvents.emit(GAME_EVENTS.UI_ENTER_DUNGEON, { dungeonId: 1 });
   }
 

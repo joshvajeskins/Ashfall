@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { CharacterSelect } from '@/components/character';
 import { GameCanvas } from '@/components/game';
+import { DungeonBridge } from '@/components/game/DungeonBridge';
 import { useUIStore } from '@/stores/uiStore';
 import { useGameStore } from '@/stores/gameStore';
 import { ImageButton } from '@/components/ui/ImageButton';
@@ -11,18 +12,60 @@ import { ImagePanel } from '@/components/ui/ImagePanel';
 import { Header } from '@/components/ui/Header';
 import { GameGuide } from '@/components/ui/GameGuide';
 import { soundManager } from '@/game/effects/SoundManager';
+import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 
 function AuthenticatedHome() {
   const { ready, authenticated, login } = usePrivy();
   const { openModal } = useUIStore();
   const { isInDungeon, exitDungeon, enterDungeon } = useGameStore();
   const [isGameActive, setIsGameActive] = useState(false);
+  const [isEnteringDungeon, setIsEnteringDungeon] = useState(false);
+  const [dungeonError, setDungeonError] = useState<string | null>(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   useEffect(() => {
     // Keep playing mainMenu music - battle music is triggered during actual combat
     soundManager.playMusic('mainMenu');
   }, []);
+
+  // Handle dungeon entry events
+  const handleDungeonEntrySuccess = useCallback((data: { action?: string; txHash?: string }) => {
+    console.log('[page] DUNGEON_ENTER received:', data);
+    if (data?.action === 'enter_dungeon' && data?.txHash) {
+      setIsEnteringDungeon(false);
+      setDungeonError(null);
+      enterDungeon(1);
+      setIsGameActive(true);
+    }
+  }, [enterDungeon]);
+
+  const handleDungeonEntryFailed = useCallback((data: { error?: string }) => {
+    console.log('[page] DUNGEON_ENTER_FAILED received:', data);
+    setIsEnteringDungeon(false);
+    setDungeonError(data?.error || 'Failed to enter dungeon');
+    soundManager.play('error');
+    // Clear error after 3 seconds
+    setTimeout(() => setDungeonError(null), 3000);
+  }, []);
+
+  useEffect(() => {
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER, handleDungeonEntrySuccess as (...args: unknown[]) => void);
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER_FAILED, handleDungeonEntryFailed as (...args: unknown[]) => void);
+
+    return () => {
+      gameEvents.off(GAME_EVENTS.DUNGEON_ENTER, handleDungeonEntrySuccess as (...args: unknown[]) => void);
+      gameEvents.off(GAME_EVENTS.DUNGEON_ENTER_FAILED, handleDungeonEntryFailed as (...args: unknown[]) => void);
+    };
+  }, [handleDungeonEntrySuccess, handleDungeonEntryFailed]);
+
+  const handleEnterDungeon = useCallback(() => {
+    if (isEnteringDungeon) return;
+    console.log('[page] Enter Dungeon clicked, emitting UI_ENTER_DUNGEON');
+    soundManager.play('doorOpen');
+    setIsEnteringDungeon(true);
+    setDungeonError(null);
+    gameEvents.emit(GAME_EVENTS.UI_ENTER_DUNGEON, { dungeonId: 1 });
+  }, [isEnteringDungeon]);
 
   if (!ready) {
     return (
@@ -206,16 +249,40 @@ function AuthenticatedHome() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
             <CharacterSelect
-              onSelect={() => {
-                soundManager.play('doorOpen');
-                enterDungeon(1);
-                setIsGameActive(true);
-              }}
+              onSelect={handleEnterDungeon}
               onEquipmentClick={(slot) => {
                 soundManager.play('menuOpen');
                 openModal('inventory');
               }}
             />
+            {isEnteringDungeon && (
+              <ImagePanel size="small" width={280}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 24,
+                      height: 24,
+                      border: '4px solid #ca8a04',
+                      borderTopColor: 'transparent',
+                      borderRadius: '50%',
+                      animation: 'spin 1s linear infinite',
+                    }}
+                  />
+                  <span style={{ color: '#fef3c7', textShadow: '2px 2px 0 #000' }}>
+                    Entering dungeon...
+                  </span>
+                </div>
+              </ImagePanel>
+            )}
+            {dungeonError && (
+              <ImagePanel size="small" width={280}>
+                <div style={{ textAlign: 'center' }}>
+                  <span style={{ color: '#f87171', textShadow: '2px 2px 0 #000' }}>
+                    {dungeonError}
+                  </span>
+                </div>
+              </ImagePanel>
+            )}
             <ImageButton
               variant="secondary"
               size="sm"
@@ -248,6 +315,9 @@ function AuthenticatedHome() {
 
       {/* Game Guide Modal */}
       <GameGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+
+      {/* DungeonBridge - handles blockchain transactions for dungeon entry */}
+      {authenticated && <DungeonBridge />}
     </div>
   );
 }
