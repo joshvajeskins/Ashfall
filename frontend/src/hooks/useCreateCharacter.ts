@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { usePrivy, useWallets } from '@privy-io/react-auth';
-import { aptosClient, CONTRACT_ADDRESS } from '@/lib/move/client';
+import { useMovementTransaction } from './useMovementTransaction';
+import { CONTRACT_ADDRESS } from '@/lib/move/client';
 import type { CharacterClass } from '@/types';
 import { CLASS_STATS } from './useCharacter';
 
@@ -20,14 +20,13 @@ const CLASS_TO_ENUM: Record<CharacterClass, number> = {
 };
 
 export function useCreateCharacter(): UseCreateCharacterResult {
-  const { authenticated } = usePrivy();
-  const { wallets } = useWallets();
+  const { signAndSubmitTransaction, isConnected } = useMovementTransaction();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const createCharacter = useCallback(
     async (characterClass: CharacterClass): Promise<boolean> => {
-      if (!authenticated || wallets.length === 0) {
+      if (!isConnected) {
         setError('Wallet not connected');
         return false;
       }
@@ -36,38 +35,32 @@ export function useCreateCharacter(): UseCreateCharacterResult {
       setError(null);
 
       try {
-        const wallet = wallets[0];
-        const address = wallet.address;
-
         // Build the transaction payload
         const payload = {
-          function: `${CONTRACT_ADDRESS}::hero::initialize_player` as `${string}::${string}::${string}`,
+          function: `${CONTRACT_ADDRESS}::hero::initialize_player`,
           typeArguments: [],
           functionArguments: [CLASS_TO_ENUM[characterClass]],
         };
 
-        // For now, we'll simulate success since actual signing requires wallet adapter
-        // In production, this would use the wallet's signAndSubmitTransaction
         console.log('Creating character with payload:', payload);
         console.log('Class stats:', CLASS_STATS[characterClass]);
 
-        // TODO: Replace with actual transaction submission
-        // const txResponse = await signAndSubmitTransaction(payload);
-        // await aptosClient.waitForTransaction({ transactionHash: txResponse.hash });
+        // Submit the transaction using Privy wallet
+        const result = await signAndSubmitTransaction(payload);
 
-        // Simulate transaction for development
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        console.log('Transaction result:', result);
 
-        return true;
+        return result.success;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create character';
         setError(errorMessage);
+        console.error('Error creating character:', err);
         return false;
       } finally {
         setIsCreating(false);
       }
     },
-    [authenticated, wallets]
+    [isConnected, signAndSubmitTransaction]
   );
 
   return {

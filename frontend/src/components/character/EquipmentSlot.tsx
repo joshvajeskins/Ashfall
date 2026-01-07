@@ -8,11 +8,22 @@ interface EquipmentSlotProps {
   onClick?: () => void;
 }
 
-const SLOT_ICONS: Record<string, string> = {
-  weapon: 'M14.5 2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 6.5a2 2 0 00-2 2v1.414l-4.707 4.707a1 1 0 001.414 1.414L9.414 11.5H11a2 2 0 002-2V8.5a2 2 0 00-2-2h-.5z',
-  armor: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-  accessory: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
+// Slot images for empty slots
+const SLOT_IMAGES: Record<string, string> = {
+  weapon: '/assets/items/sword.png',
+  armor: '/assets/items/armor.png',
+  accessory: '/assets/items/ring.png',
 };
+
+// Get item image based on name and type
+function getEquippedItemImage(item: Item): string {
+  const name = item.name.toLowerCase();
+  if (name.includes('shield')) return '/assets/items/shield.png';
+  if (name.includes('potion')) return '/assets/items/potion.png';
+  if (name.includes('ring')) return '/assets/items/ring.png';
+  if (name.includes('armor')) return '/assets/items/armor.png';
+  return SLOT_IMAGES[item.type.toLowerCase()] || '/assets/items/sword.png';
+}
 
 const SLOT_LABELS: Record<string, string> = {
   weapon: 'Weapon',
@@ -54,27 +65,27 @@ export function EquipmentSlot({ slotType, item, onClick }: EquipmentSlotProps) {
     >
       {isEmpty ? (
         <>
-          <svg
-            className="w-6 h-6 text-zinc-600"
-            fill="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path d={SLOT_ICONS[slotType]} />
-          </svg>
+          <img
+            src={SLOT_IMAGES[slotType]}
+            alt={SLOT_LABELS[slotType]}
+            className="w-8 h-8 object-contain opacity-30"
+            style={{ imageRendering: 'pixelated' }}
+          />
           <span className="text-[10px] text-zinc-600">{SLOT_LABELS[slotType]}</span>
         </>
       ) : (
         <>
-          <div className="w-8 h-8 bg-zinc-800 rounded flex items-center justify-center">
-            <svg className="w-5 h-5 text-zinc-300" fill="currentColor" viewBox="0 0 24 24">
-              <path d={SLOT_ICONS[slotType]} />
-            </svg>
-          </div>
+          <img
+            src={getEquippedItemImage(item)}
+            alt={item.name}
+            className="w-10 h-10 object-contain"
+            style={{ imageRendering: 'pixelated' }}
+          />
           {item.stats.damage && (
-            <span className="text-[10px] text-red-400">+{item.stats.damage}</span>
+            <span className="absolute bottom-0.5 right-0.5 text-[10px] text-red-400 font-bold">+{item.stats.damage}</span>
           )}
           {item.stats.defense && (
-            <span className="text-[10px] text-blue-400">+{item.stats.defense}</span>
+            <span className="absolute bottom-0.5 right-0.5 text-[10px] text-blue-400 font-bold">+{item.stats.defense}</span>
           )}
         </>
       )}

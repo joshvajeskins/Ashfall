@@ -2,14 +2,15 @@ import * as Phaser from 'phaser';
 import { gameEvents, GAME_EVENTS } from '../events/GameEvents';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 
-// Asset configuration - real assets to attempt loading
+// Asset configuration - real pixel art assets
 const ASSETS = {
   sprites: {
     players: ['warrior', 'rogue', 'mage'],
-    enemies: ['skeleton', 'zombie', 'ghoul', 'vampire', 'lich', 'boss'],
+    enemies: ['skeleton', 'zombie', 'ghoul', 'vampire', 'lich', 'goblin', 'dragon', 'boss'],
     items: ['sword', 'shield', 'armor', 'potion', 'ring', 'gold'],
   },
-  tiles: ['floor', 'wall', 'door', 'exit', 'chest'],
+  tiles: ['floor', 'wall', 'door', 'exit', 'chest', 'skull'],
+  ui: ['background', 'background-alt'],
   audio: {
     sfx: [
       'attack', 'hit', 'critical', 'player-hurt', 'player-death',
@@ -69,11 +70,12 @@ export class BootScene extends Phaser.Scene {
   }
 
   private loadAssets(): void {
-    // Try to load real assets
+    // Load real pixel art assets
     this.loadPlayerSprites();
     this.loadEnemySprites();
     this.loadTileSprites();
     this.loadItemSprites();
+    this.loadUIAssets();
     this.loadAudio();
   }
 
@@ -90,26 +92,35 @@ export class BootScene extends Phaser.Scene {
 
   private loadPlayerSprites(): void {
     ASSETS.sprites.players.forEach(player => {
-      this.load.image(`player-${player}`, `/assets/sprites/player/${player}.png`);
+      this.load.image(`player-${player}`, `/assets/characters/${player}.png`);
     });
-    this.load.image('player', '/assets/sprites/player/warrior.png');
+    this.load.image('player', '/assets/characters/warrior.png');
   }
 
   private loadEnemySprites(): void {
     ASSETS.sprites.enemies.forEach(enemy => {
-      this.load.image(`enemy-${enemy}`, `/assets/sprites/enemies/${enemy}.png`);
+      this.load.image(`enemy-${enemy}`, `/assets/enemies/${enemy}.png`);
     });
+    // Load alternate versions
+    this.load.image('enemy-skeleton-alt', '/assets/enemies/skeleton-alt.png');
+    this.load.image('enemy-boss-alt', '/assets/enemies/boss-alt.png');
   }
 
   private loadTileSprites(): void {
     ASSETS.tiles.forEach(tile => {
-      this.load.image(`tile-${tile}`, `/assets/tiles/${tile}.png`);
+      this.load.image(`tile-${tile}`, `/assets/environment/${tile}.png`);
     });
   }
 
   private loadItemSprites(): void {
     ASSETS.sprites.items.forEach(item => {
-      this.load.image(`item-${item}`, `/assets/sprites/items/${item}.png`);
+      this.load.image(`item-${item}`, `/assets/items/${item}.png`);
+    });
+  }
+
+  private loadUIAssets(): void {
+    ASSETS.ui.forEach(asset => {
+      this.load.image(`ui-${asset}`, `/assets/ui/${asset}.png`);
     });
   }
 
@@ -157,18 +168,21 @@ export class BootScene extends Phaser.Scene {
     // Enemy fallbacks
     const enemyColors: Record<string, number> = {
       skeleton: 0xcccccc, zombie: 0x446644, ghoul: 0x666688,
-      vampire: 0x880044, lich: 0x440088, boss: 0xff2200,
+      vampire: 0x880044, lich: 0x440088, goblin: 0x448844,
+      dragon: 0xcc4400, boss: 0xff2200,
     };
     ASSETS.sprites.enemies.forEach(enemy => {
       const key = `enemy-${enemy}`;
       if (this.failedAssets.has(key) || !this.textures.exists(key)) {
-        this.createEnemyTexture(key, enemyColors[enemy] || 0xaa2222, enemy === 'boss');
+        const isBig = enemy === 'boss' || enemy === 'dragon';
+        this.createEnemyTexture(key, enemyColors[enemy] || 0xaa2222, isBig);
       }
     });
 
     // Tile fallbacks
     const tileColors: Record<string, number> = {
-      floor: 0x333333, wall: 0x555555, door: 0x886644, exit: 0x44ff44, chest: 0xccaa00,
+      floor: 0x333333, wall: 0x555555, door: 0x886644,
+      exit: 0x44ff44, chest: 0xccaa00, skull: 0xeeeeee,
     };
     ASSETS.tiles.forEach(tile => {
       const key = `tile-${tile}`;
@@ -189,9 +203,25 @@ export class BootScene extends Phaser.Scene {
       }
     });
 
+    // UI background fallbacks
+    ASSETS.ui.forEach(asset => {
+      const key = `ui-${asset}`;
+      if (this.failedAssets.has(key) || !this.textures.exists(key)) {
+        this.createBackgroundTexture(key);
+      }
+    });
+
     // UI elements (always generated)
     this.createUITexture('button', 0x444444, 120, 40);
     this.createUITexture('panel', 0x222222, 200, 300);
+  }
+
+  private createBackgroundTexture(key: string): void {
+    const g = this.make.graphics({ x: 0, y: 0 });
+    g.fillGradientStyle(0x1a0a0a, 0x1a0a0a, 0x0a0505, 0x0a0505, 1);
+    g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    g.generateTexture(key, GAME_WIDTH, GAME_HEIGHT);
+    g.destroy();
   }
 
   private createPlayerTexture(key: string, color: number): void {

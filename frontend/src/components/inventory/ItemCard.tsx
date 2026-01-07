@@ -30,12 +30,24 @@ const RARITY_BG: Record<Item['rarity'], string> = {
   Legendary: 'bg-orange-950/30',
 };
 
-const TYPE_ICONS: Record<Item['type'], string> = {
-  Weapon: 'M14.5 2.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0zM10 6.5a2 2 0 00-2 2v1.414l-4.707 4.707',
-  Armor: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z',
-  Accessory: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
-  Consumable: 'M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z',
+// Map item types to their image paths
+const TYPE_IMAGES: Record<Item['type'], string> = {
+  Weapon: '/assets/items/sword.png',
+  Armor: '/assets/items/armor.png',
+  Accessory: '/assets/items/ring.png',
+  Consumable: '/assets/items/potion.png',
 };
+
+// Get specific item image based on name
+function getItemImage(item: Item): string {
+  const name = item.name.toLowerCase();
+  if (name.includes('shield')) return '/assets/items/shield.png';
+  if (name.includes('gold') || name.includes('coin')) return '/assets/items/gold.png';
+  if (name.includes('potion')) return '/assets/items/potion.png';
+  if (name.includes('ring')) return '/assets/items/ring.png';
+  if (name.includes('armor')) return '/assets/items/armor.png';
+  return TYPE_IMAGES[item.type];
+}
 
 export function ItemCard({
   item,
@@ -83,9 +95,12 @@ export function ItemCard({
         onContextMenu={handleContextMenu}
         disabled={disabled}
       >
-        <svg className="w-7 h-7 text-zinc-300" fill="currentColor" viewBox="0 0 24 24">
-          <path d={TYPE_ICONS[item.type]} />
-        </svg>
+        <img
+          src={getItemImage(item)}
+          alt={item.name}
+          className="w-10 h-10 object-contain pixelated"
+          style={{ imageRendering: 'pixelated' }}
+        />
 
         {/* Equipped indicator */}
         {item.isEquipped && (

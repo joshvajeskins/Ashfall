@@ -68,11 +68,20 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private createBackground(): void {
-    const bg = this.add.graphics();
-    bg.fillGradientStyle(0x1a0a0a, 0x1a0a0a, 0x2a1a1a, 0x2a1a1a, 1);
-    bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    bg.lineStyle(2, 0x444444, 1);
-    bg.lineBetween(0, 400, GAME_WIDTH, 400);
+    // Use pixel art background if available
+    if (this.textures.exists('ui-background-alt')) {
+      this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'ui-background-alt')
+        .setDisplaySize(GAME_WIDTH, GAME_HEIGHT)
+        .setAlpha(0.4);
+    } else {
+      const bg = this.add.graphics();
+      bg.fillGradientStyle(0x1a0a0a, 0x1a0a0a, 0x2a1a1a, 0x2a1a1a, 1);
+      bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+    }
+    // Arena floor line
+    const line = this.add.graphics();
+    line.lineStyle(2, 0x444444, 1);
+    line.lineBetween(0, 400, GAME_WIDTH, 400);
   }
 
   private createRedFlash(): void {
@@ -84,9 +93,13 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private createCombatants(): void {
-    this.playerSprite = this.add.image(200, 300, 'player').setScale(4);
+    // Use character class-specific sprite
+    const playerTexture = `player-${this.character.class.toLowerCase()}`;
+    this.playerSprite = this.add.image(200, 300, playerTexture).setScale(4);
+
     const enemyTexture = this.getEnemyTexture();
-    this.enemySprite = this.add.image(600, 300, enemyTexture).setScale(4);
+    const enemyScale = this.enemy.isBoss ? 5 : 4;
+    this.enemySprite = this.add.image(600, 300, enemyTexture).setScale(enemyScale);
 
     this.add.text(200, 170, this.character.class, {
       fontFamily: 'monospace', fontSize: '18px', color: '#4488ff'
@@ -99,10 +112,16 @@ export class CombatScene extends Phaser.Scene {
 
   private getEnemyTexture(): string {
     const name = this.enemy.name.toLowerCase();
-    if (name.includes('goblin')) return 'enemy-goblin';
+    // Match all available enemy sprites
+    if (name.includes('dragon')) return 'enemy-dragon';
+    if (name.includes('boss') || name.includes('demon') || name.includes('lord')) return 'enemy-boss';
+    if (name.includes('lich')) return 'enemy-lich';
+    if (name.includes('vampire')) return 'enemy-vampire';
+    if (name.includes('ghoul')) return 'enemy-ghoul';
+    if (name.includes('zombie')) return 'enemy-zombie';
     if (name.includes('skeleton')) return 'enemy-skeleton';
-    if (name.includes('demon')) return 'enemy-demon';
-    return 'enemy-goblin';
+    if (name.includes('goblin')) return 'enemy-goblin';
+    return 'enemy-skeleton';
   }
 
   private createHealthBars(): void {

@@ -143,7 +143,9 @@ export class DungeonScene extends Phaser.Scene {
     const { width, height } = this.currentRoom;
     const startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
-    this.player = this.add.image(startX, startY, 'player').setDepth(10);
+    // Use character class-specific sprite
+    const playerTexture = `player-${this.character.class.toLowerCase()}`;
+    this.player = this.add.image(startX, startY, playerTexture).setDepth(10);
   }
 
   private spawnEnemies(): void {
@@ -155,19 +157,34 @@ export class DungeonScene extends Phaser.Scene {
       return;
     }
 
+    // Enemy types vary by floor
+    const enemyTypes = this.getEnemyTypesForFloor();
     this.currentRoom.enemies.forEach((enemy, i) => {
       const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
-      const key = `enemy-${['goblin', 'skeleton'][i % 2]}`;
+      const enemyType = enemyTypes[i % enemyTypes.length];
+      const key = `enemy-${enemyType}`;
       const sprite = this.add.image(x, y, key).setDepth(9);
-      this.enemies.push({ sprite, data: { ...enemy, id: i } });
+      this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType } });
     });
+  }
+
+  private getEnemyTypesForFloor(): string[] {
+    // Different enemy types appear on different floors
+    const floorEnemies: Record<number, string[]> = {
+      1: ['goblin', 'skeleton'],
+      2: ['skeleton', 'zombie', 'goblin'],
+      3: ['zombie', 'ghoul', 'skeleton'],
+      4: ['ghoul', 'vampire', 'lich'],
+      5: ['vampire', 'lich', 'dragon'],
+    };
+    return floorEnemies[this.currentFloor] || ['skeleton', 'goblin'];
   }
 
   private spawnBoss(): void {
     const x = Math.floor(this.currentRoom.width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const y = Math.floor(this.currentRoom.height / 3) * TILE_SIZE + TILE_SIZE / 2;
-    const sprite = this.add.image(x, y, 'enemy-demon').setDepth(9).setScale(1.5);
+    const sprite = this.add.image(x, y, 'enemy-boss').setDepth(9).setScale(1.5);
 
     const bossEnemy: Enemy = {
       id: 999,
@@ -190,12 +207,29 @@ export class DungeonScene extends Phaser.Scene {
     });
   }
 
+  private getItemSpriteKey(item: Item): string {
+    // Map item type to sprite key
+    const typeMap: Record<string, string> = {
+      'Weapon': 'item-sword',
+      'Armor': 'item-armor',
+      'Accessory': 'item-ring',
+      'Consumable': 'item-potion',
+    };
+    // Check for specific item names
+    const name = item.name.toLowerCase();
+    if (name.includes('shield')) return 'item-shield';
+    if (name.includes('gold') || name.includes('coin')) return 'item-gold';
+    if (name.includes('potion')) return 'item-potion';
+    if (name.includes('ring')) return 'item-ring';
+    return typeMap[item.type] || 'item-sword';
+  }
+
   private spawnItems(): void {
     if (this.currentRoom.cleared || this.currentRoom.type !== 'treasure') return;
-    this.currentRoom.loot.forEach((item, i) => {
+    this.currentRoom.loot.forEach((item) => {
       const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
-      const key = `item-${['sword', 'shield', 'potion'][i % 3]}`;
+      const key = this.getItemSpriteKey(item);
       const sprite = this.add.image(x, y, key).setDepth(5).setData('itemData', item);
       this.items.push(sprite);
 
