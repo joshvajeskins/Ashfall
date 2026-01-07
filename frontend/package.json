@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@aptos-labs/ts-sdk": "^5.2.0",
-    "@privy-io/react-auth": "^3.10.0",
+    "@privy-io/react-auth": "^3.10.1",
     "@solana-program/system": "^0.10.0",
     "@solana-program/token": "^0.9.0",
     "@solana/kit": "^5.1.0",
