@@ -2,22 +2,29 @@
 
 import { usePrivy, useLogin } from '@privy-io/react-auth';
 import { useCreateWallet } from '@privy-io/react-auth/extended-chains';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { createMovementWallet, getMovementWallet } from '@/lib/privy-movement';
+import { Button } from '@/components/ui/Button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Copy, LogOut, ChevronDown, Wallet, Check } from 'lucide-react';
 
 export function ConnectButton() {
   const hasPrivyConfig = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
   if (!hasPrivyConfig) {
     return (
-      <button
-        disabled
-        className="px-4 py-2 bg-zinc-800 text-zinc-500 rounded-lg cursor-not-allowed border border-zinc-700"
-        title="Privy not configured"
-      >
+      <Button variant="outline" disabled>
+        <Wallet className="size-4" />
         Wallet
-      </button>
+      </Button>
     );
   }
 
@@ -28,11 +35,9 @@ function PrivyConnectButton() {
   const { ready, authenticated, logout, user } = usePrivy();
   const { createWallet } = useCreateWallet();
   const { setWallet, setConnecting, disconnect } = useWalletStore();
-  const [showDropdown, setShowDropdown] = useState(false);
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [copied, setCopied] = useState(false);
 
-  // Get Movement wallet from user's linked accounts
   const movementWallet = getMovementWallet(user);
 
   const { login } = useLogin({
@@ -52,7 +57,6 @@ function PrivyConnectButton() {
     },
   });
 
-  // Sync wallet state with Zustand store
   useEffect(() => {
     if (authenticated && movementWallet?.address) {
       setWallet(movementWallet.address);
@@ -61,7 +65,6 @@ function PrivyConnectButton() {
     }
   }, [authenticated, movementWallet?.address, setWallet, disconnect]);
 
-  // Auto-create wallet if authenticated but no Movement wallet
   useEffect(() => {
     const ensureWallet = async () => {
       if (authenticated && user && !movementWallet && !isCreatingWallet) {
@@ -78,51 +81,49 @@ function PrivyConnectButton() {
     ensureWallet();
   }, [authenticated, user, movementWallet, createWallet, isCreatingWallet]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
-      }
+  const handleCopyAddress = async () => {
+    if (movementWallet?.address) {
+      await navigator.clipboard.writeText(movementWallet.address);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+    logout();
+  };
 
   if (!ready) {
     return (
-      <button
-        disabled
-        className="px-4 py-2 bg-zinc-800 text-zinc-500 rounded-lg cursor-not-allowed border border-zinc-700"
-      >
+      <Button variant="outline" disabled>
+        <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         Loading...
-      </button>
+      </Button>
     );
   }
 
   if (!authenticated) {
     return (
-      <button
+      <Button
         onClick={() => {
           setConnecting(true);
           login();
         }}
-        className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors border border-red-500"
+        className="bg-red-600 hover:bg-red-700 text-white border-red-500"
       >
+        <Wallet className="size-4" />
         Connect Wallet
-      </button>
+      </Button>
     );
   }
 
   if (isCreatingWallet) {
     return (
-      <button
-        disabled
-        className="px-4 py-2 bg-zinc-800 text-zinc-400 rounded-lg border border-zinc-700 flex items-center gap-2"
-      >
-        <span className="animate-spin w-4 h-4 border-2 border-zinc-400 border-t-transparent rounded-full"></span>
+      <Button variant="outline" disabled>
+        <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
         Creating Wallet...
-      </button>
+      </Button>
     );
   }
 
@@ -130,49 +131,46 @@ function PrivyConnectButton() {
     ? `${movementWallet.address.slice(0, 6)}...${movementWallet.address.slice(-4)}`
     : 'No Wallet';
 
-  const handleDisconnect = () => {
-    disconnect();
-    logout();
-    setShowDropdown(false);
-  };
-
   return (
-    <div className="relative" ref={dropdownRef}>
-      <button
-        onClick={() => setShowDropdown(!showDropdown)}
-        className="flex items-center gap-2 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg transition-colors border border-zinc-700"
-      >
-        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-        <span>{displayAddress}</span>
-        <svg
-          className={`w-4 h-4 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {showDropdown && (
-        <div className="absolute right-0 mt-2 w-48 bg-zinc-900 border border-zinc-700 rounded-lg shadow-lg z-50">
-          <div className="p-3 border-b border-zinc-700">
-            <p className="text-xs text-zinc-500">Movement Wallet</p>
-            <p className="text-sm text-zinc-300 font-mono truncate">
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" className="gap-2">
+          <span className="size-2 bg-green-500 rounded-full" />
+          <span className="font-mono">{displayAddress}</span>
+          <ChevronDown className="size-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="font-normal">
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium">Movement Wallet</p>
+            <p className="text-xs text-muted-foreground font-mono truncate">
               {movementWallet?.address || 'Not created'}
             </p>
             {user?.email?.address && (
-              <p className="text-xs text-zinc-500 mt-1">{user.email.address}</p>
+              <p className="text-xs text-muted-foreground">{user.email.address}</p>
             )}
           </div>
-          <button
-            onClick={handleDisconnect}
-            className="w-full px-4 py-2 text-left text-red-400 hover:bg-zinc-800 transition-colors rounded-b-lg"
-          >
-            Disconnect
-          </button>
-        </div>
-      )}
-    </div>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={handleCopyAddress} className="cursor-pointer">
+          {copied ? (
+            <Check className="size-4 text-green-500" />
+          ) : (
+            <Copy className="size-4" />
+          )}
+          {copied ? 'Copied!' : 'Copy Address'}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          onClick={handleDisconnect}
+          variant="destructive"
+          className="cursor-pointer"
+        >
+          <LogOut className="size-4" />
+          Disconnect
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
