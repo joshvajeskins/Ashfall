@@ -13,8 +13,8 @@ const MOVEMENT_TESTNET_CONFIG = {
   indexerUrl: 'https://indexer.testnet.movementnetwork.xyz/v1/graphql',
 };
 
-// Contract address - update after deployment
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '0x1';
+// Contract address
+const CONTRACT_ADDRESS = '0x2b633f672b485166e89bb90903962d5ad26bbf70ce079ed484bae518d89d2dc5';
 
 // Initialize Aptos client for Movement
 const config = new AptosConfig({
