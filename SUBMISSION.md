@@ -326,18 +326,15 @@ Break-even MAU: 10,000
 
 ## Demo
 
-### Live Demo
-[Link to deployed application]
+### Live App
+https://ashfall-web-demo.vercel.app
 
-### Video Walkthrough
-[Link to demo video]
-
-### Test Instructions
-1. Visit app URL
+### How to Test
+1. Visit https://ashfall-web-demo.vercel.app
 2. Sign in with email (Privy)
-3. Create a character
+3. Create a character (Warrior/Rogue/Mage)
 4. Enter the dungeon
-5. Try to survive (or don't—watch your items burn!)
+5. Try to survive—or watch your items burn!
 
 ---
 
@@ -384,19 +381,8 @@ Phaser.js delivers 60fps gameplay while maintaining blockchain state sync.
 
 | Resource | URL |
 |----------|-----|
-| GitHub Repository | [repo-url] |
-| Live Demo | [demo-url] |
-| Demo Video | [video-url] |
-| Smart Contracts | [explorer-url] |
-
----
-
-## Contact
-
-**Project**: Ashfall
-**Event**: Movement Hackathon 2025
-**Email**: [contact-email]
-**Twitter**: [twitter-handle]
+| **Live App** | https://ashfall-web-demo.vercel.app |
+| **GitHub** | https://github.com/joshvajeskins/Ashfall |
 
 ---
 
