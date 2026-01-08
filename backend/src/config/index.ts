@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const config = {
-  port: parseInt(process.env.PORT || '3001', 10),
+  port: parseInt(process.env.PORT || '4003', 10),
   movementRpcUrl: process.env.MOVEMENT_RPC_URL || 'https://testnet.movementnetwork.xyz/v1',
   serverPrivateKey: process.env.SERVER_PRIVATE_KEY || '',
   contractAddress: process.env.CONTRACT_ADDRESS || '',
