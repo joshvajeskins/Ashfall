@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const hashHex = Buffer.from(signingHash).toString('hex');
 
     return NextResponse.json({
-      hash: hashHex,
+      hash: `0x${hashHex}`,
       rawTxnHex,
       sender,
     });
