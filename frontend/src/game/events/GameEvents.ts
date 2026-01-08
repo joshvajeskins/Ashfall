@@ -79,6 +79,7 @@ export const GAME_EVENTS = {
 
   // Dungeon events
   DUNGEON_ENTER: 'dungeon:enter',
+  DUNGEON_ENTER_FAILED: 'dungeon:enterFailed',
   DUNGEON_EXIT: 'dungeon:exit',
   DUNGEON_COMPLETE: 'dungeon:complete',
   FLOOR_COMPLETE: 'floor:complete',

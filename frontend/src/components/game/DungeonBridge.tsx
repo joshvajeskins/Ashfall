@@ -44,6 +44,9 @@ export function DungeonBridge() {
         });
       } else {
         console.warn('[DungeonBridge] Failed to enter dungeon:', result.error);
+        gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER_FAILED, {
+          error: result.error,
+        });
       }
     },
     [enterDungeon]
