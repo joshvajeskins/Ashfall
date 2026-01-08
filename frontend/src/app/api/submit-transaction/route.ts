@@ -44,8 +44,25 @@ export async function POST(request: NextRequest) {
     const transaction = new SimpleTransaction(rawTxn);
 
     // Clean up signature and public key - remove 0x prefix if present
-    const cleanSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
-    const cleanPublicKey = publicKey.startsWith('0x') ? publicKey.slice(2) : publicKey;
+    let cleanSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
+    let cleanPublicKey = publicKey.startsWith('0x') ? publicKey.slice(2) : publicKey;
+
+    // Log lengths for debugging
+    console.log('Public key length (hex chars):', cleanPublicKey.length);
+    console.log('Signature length (hex chars):', cleanSignature.length);
+
+    // Ed25519 public key should be 32 bytes = 64 hex chars
+    // If it's longer, it might have a scheme prefix (e.g., 0x00 for Ed25519)
+    if (cleanPublicKey.length === 66) {
+      // Remove the 1-byte scheme prefix (first 2 hex chars)
+      cleanPublicKey = cleanPublicKey.slice(2);
+    }
+
+    // Ed25519 signature should be 64 bytes = 128 hex chars
+    if (cleanSignature.length === 130) {
+      // Remove the 1-byte scheme prefix (first 2 hex chars)
+      cleanSignature = cleanSignature.slice(2);
+    }
 
     // Create Ed25519 public key and signature
     const pubKey = new Ed25519PublicKey(cleanPublicKey);
