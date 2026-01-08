@@ -4,9 +4,9 @@ import { useCallback } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
-import { aptosClient, MOVEMENT_TESTNET_CONFIG } from '@/lib/move/client';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
+// API routes are in the same Next.js app, use relative paths by default
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 interface TransactionPayload {
   function: string;
@@ -35,8 +35,8 @@ export function useMovementTransaction() {
         throw new Error('Wallet not connected');
       }
 
-      // If backend API is configured, use the hash-sign-submit flow
-      if (API_BASE_URL) {
+      // Use the hash-sign-submit flow with local or configured API
+      {
         // Step 1: Generate transaction hash from backend
         const hashResponse = await fetch(`${API_BASE_URL}/api/generate-hash`, {
           method: 'POST',
@@ -83,29 +83,6 @@ export function useMovementTransaction() {
           success: result.success ?? true,
         };
       }
-
-      // Fallback: Use simulation for local development
-      console.warn('No API_BASE_URL configured, simulating transaction');
-
-      // Try to simulate the transaction
-      try {
-        const result = await aptosClient.view({
-          payload: {
-            function: payload.function as `${string}::${string}::${string}`,
-            typeArguments: payload.typeArguments as [],
-            functionArguments: payload.functionArguments,
-          },
-        });
-        console.log('Simulation result:', result);
-      } catch (e) {
-        console.log('Simulation skipped (entry function):', e);
-      }
-
-      // Return mock result for development
-      return {
-        hash: `0x${Date.now().toString(16)}`,
-        success: true,
-      };
     },
     [authenticated, movementWallet, signRawHash]
   );
