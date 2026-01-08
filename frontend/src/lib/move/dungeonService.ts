@@ -1,7 +1,8 @@
 // Dungeon transaction service
-// Server-authorized functions require backend API calls
+// Server-authorized functions use Shinami Invisible Wallets via backend API
+// All gas is sponsored - users never pay for dungeon actions
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
 export interface ExitDungeonResponse {
   success: boolean;
