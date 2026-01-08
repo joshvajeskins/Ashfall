@@ -20,7 +20,7 @@ const PrivyProviderWrapper = dynamic(
                 accentColor: '#ef4444',
                 logo: '/logo.png',
               },
-              loginMethods: ['email', 'google', 'twitter', 'discord', 'github'],
+              loginMethods: ['email'],
             }}
           >
             {children}

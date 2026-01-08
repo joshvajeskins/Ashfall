@@ -121,5 +121,25 @@
   }
   body {
     @apply bg-background text-foreground;
+
+    /* Privy modal customization - Ashfall dark theme */
+    --privy-color-background: #1a1a1a;
+    --privy-color-background-2: #262626;
+    --privy-color-background-3: #333333;
+    --privy-color-foreground: #fafafa;
+    --privy-color-foreground-2: #a3a3a3;
+    --privy-color-foreground-3: #737373;
+    --privy-color-foreground-4: #525252;
+    --privy-color-accent: #ef4444;
+    --privy-color-accent-light: #f87171;
+    --privy-color-accent-lightest: #fca5a5;
+    --privy-color-accent-dark: #dc2626;
+    --privy-color-accent-darkest: #b91c1c;
+    --privy-color-success: #22c55e;
+    --privy-color-error: #ef4444;
+    --privy-color-error-light: #fca5a5;
+    --privy-border-radius-sm: 6px;
+    --privy-border-radius-md: 8px;
+    --privy-border-radius-lg: 12px;
   }
 }
