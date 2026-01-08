@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Aptos, AptosConfig, Network } from '@aptos-labs/ts-sdk';
-import { sha3_256 } from '@noble/hashes/sha3';
+import { sha3_256 } from '@noble/hashes/sha3.js';
 
 const MOVEMENT_TESTNET_CONFIG = {
   rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
