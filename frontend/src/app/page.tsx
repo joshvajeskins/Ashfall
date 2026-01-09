@@ -76,6 +76,7 @@ function AuthenticatedHome() {
           <ImageButton
             variant="secondary"
             size="md"
+            soundType="cancel"
             onClick={() => {
               soundManager.fadeOutMusic();
               setIsGameActive(false);

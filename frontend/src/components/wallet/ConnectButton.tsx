@@ -118,7 +118,7 @@ function PrivyConnectButton() {
   };
 
   const handleDisconnect = () => {
-    soundManager.play('buttonClick');
+    soundManager.play('error');
     setShowDropdown(false);
     disconnect();
     logout();

@@ -33,7 +33,7 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
   };
 
   const handleClose = () => {
-    soundManager.play('buttonClick');
+    soundManager.play('error');
     onClose?.();
   };
 
