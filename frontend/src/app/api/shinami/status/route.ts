@@ -8,28 +8,25 @@ import { getServerWalletAddress, isServerAuthorized } from '@/lib/shinami/invisi
  * Returns server wallet address and configuration status.
  *
  * Useful for:
- * - Verifying Shinami keys are configured
+ * - Verifying Shinami key is configured
  * - Getting server wallet address for on-chain registration
  * - Debugging integration issues
  */
 export async function GET() {
+  const shinamiKeyConfigured = !!process.env.SHINAMI_KEY;
+  const serverSecretConfigured = !!process.env.SHINAMI_SERVER_WALLET_SECRET;
+
   const status: Record<string, unknown> = {
-    gasStation: {
-      configured: !!process.env.SHINAMI_GAS_STATION_KEY,
-    },
-    walletServices: {
-      configured: !!process.env.SHINAMI_WALLET_SERVICES_KEY,
+    shinamiKey: {
+      configured: shinamiKeyConfigured,
     },
     serverWallet: {
-      secretConfigured: !!process.env.SHINAMI_SERVER_WALLET_SECRET,
+      secretConfigured: serverSecretConfigured,
     },
   };
 
   // Try to get server wallet address if configured
-  if (
-    process.env.SHINAMI_WALLET_SERVICES_KEY &&
-    process.env.SHINAMI_SERVER_WALLET_SECRET
-  ) {
+  if (shinamiKeyConfigured && serverSecretConfigured) {
     try {
       const address = await getServerWalletAddress();
       const authorized = await isServerAuthorized();
@@ -49,13 +46,7 @@ export async function GET() {
     }
   }
 
-  const allConfigured =
-    status.gasStation &&
-    (status.gasStation as { configured: boolean }).configured &&
-    status.walletServices &&
-    (status.walletServices as { configured: boolean }).configured &&
-    status.serverWallet &&
-    (status.serverWallet as { secretConfigured: boolean }).secretConfigured;
+  const allConfigured = shinamiKeyConfigured && serverSecretConfigured;
 
   return NextResponse.json({
     status: allConfigured ? 'ready' : 'incomplete',

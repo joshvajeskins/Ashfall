@@ -12,40 +12,36 @@ import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 import { useGameStore } from '@/stores/gameStore';
 import { BossWarning } from '@/components/ui/BossWarning';
 
+// Module-level singleton to prevent multiple Phaser instances (React StrictMode fix)
+let globalGameInstance: Phaser.Game | null = null;
+let globalHasStartedDungeon = false;
+
 interface GameCanvasProps {
   onReady?: () => void;
   startInDungeon?: boolean;
 }
 
 export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) {
-  const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasStartedDungeon = useRef(false);
 
   const { enterDungeon, exitDungeon, addToInventory, die } = useGameStore();
 
-  // Initialize Phaser game (only once)
+  // Initialize Phaser game (only once using module-level singleton)
   useEffect(() => {
-    if (!containerRef.current || gameRef.current) return;
+    if (!containerRef.current) return;
 
-    const config: Phaser.Types.Core.GameConfig = {
-      ...gameConfig,
-      parent: containerRef.current,
-      scene: [BootScene, DungeonScene, CombatScene, DeathScene, VictoryScene],
-    };
-
-    gameRef.current = new Phaser.Game(config);
-
-    // Notify when ready and start dungeon directly (skip MenuScene)
+    // Set up event listener - must be done every mount since cleanup removes it
     const handleSceneReady = (...args: unknown[]) => {
       const sceneName = args[0] as string;
       if (sceneName === 'BootScene') {
         onReady?.();
         // Go directly to DungeonScene, skip MenuScene entirely
-        if (startInDungeon && !hasStartedDungeon.current) {
+        if (startInDungeon && !globalHasStartedDungeon) {
           const currentCharacter = useGameStore.getState().character;
-          hasStartedDungeon.current = true;
-          gameRef.current?.scene.start('DungeonScene', { character: currentCharacter });
+          globalHasStartedDungeon = true;
+          // Stop BootScene first, then start DungeonScene
+          globalGameInstance?.scene.stop('BootScene');
+          globalGameInstance?.scene.start('DungeonScene', { character: currentCharacter });
           gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
         }
       }
@@ -53,15 +49,53 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
 
     gameEvents.on(GAME_EVENTS.SCENE_READY, handleSceneReady);
 
+    // If game already exists, just re-parent it to this container
+    if (globalGameInstance) {
+      // Check if game canvas needs to be moved to new container
+      const canvas = globalGameInstance.canvas;
+      if (canvas && canvas.parentElement !== containerRef.current) {
+        containerRef.current.appendChild(canvas);
+      }
+      // Cleanup listener on unmount
+      return () => {
+        gameEvents.off(GAME_EVENTS.SCENE_READY, handleSceneReady);
+      };
+    }
+
+    const config: Phaser.Types.Core.GameConfig = {
+      ...gameConfig,
+      parent: containerRef.current,
+      scene: [BootScene, DungeonScene, CombatScene, DeathScene, VictoryScene],
+    };
+
+    globalGameInstance = new Phaser.Game(config);
+
+    // Cleanup listener on unmount
     return () => {
       gameEvents.off(GAME_EVENTS.SCENE_READY, handleSceneReady);
-      gameEvents.removeAllListeners();
-      gameRef.current?.destroy(true);
-      gameRef.current = null;
-      // Reset flag so next mount can start dungeon
-      hasStartedDungeon.current = false;
     };
   }, [onReady, startInDungeon]);
+
+  // Reset dungeon state when component fully unmounts (for re-entry)
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+
+    return () => {
+      // Use a small timeout to distinguish StrictMode remount from real unmount
+      timeoutId = setTimeout(() => {
+        globalHasStartedDungeon = false;
+        // Stop dungeon scene and reset to BootScene for next entry
+        if (globalGameInstance) {
+          globalGameInstance.scene.stop('DungeonScene');
+          globalGameInstance.scene.stop('CombatScene');
+          globalGameInstance.scene.start('BootScene');
+        }
+      }, 100);
+
+      // Clear timeout if component remounts quickly (StrictMode)
+      return;
+    };
+  }, []);
 
   // Setup game event listeners
   useEffect(() => {

@@ -74,7 +74,8 @@ export class DeathScene extends Phaser.Scene {
   }
 
   private startDeathSequence(): void {
-    // Play death sound
+    // Switch to game over music
+    soundManager.playMusic('gameOver');
     soundManager.play('playerDeath');
 
     // Phase 1: Screen shake and red flash

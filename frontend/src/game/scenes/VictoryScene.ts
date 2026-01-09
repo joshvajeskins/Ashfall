@@ -79,7 +79,8 @@ export class VictoryScene extends Phaser.Scene {
   }
 
   private startVictorySequence(): void {
-    // Play victory fanfare
+    // Switch to victory music
+    soundManager.playMusic('victory');
     soundManager.play('victory');
 
     // Phase 1: Flash and overlay

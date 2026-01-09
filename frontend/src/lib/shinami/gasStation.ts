@@ -21,7 +21,7 @@ import {
   AccountAuthenticator,
 } from '@aptos-labs/ts-sdk';
 import { GasStationClient } from '@shinami/clients/aptos';
-import { getShinamiGasKey, MOVEMENT_TESTNET_CONFIG } from './config';
+import { getShinamiKey, MOVEMENT_TESTNET_CONFIG } from './config';
 
 // Initialize Aptos client for Movement
 const aptosConfig = new AptosConfig({
@@ -37,7 +37,7 @@ let gasStationClient: GasStationClient | null = null;
 
 function getGasStationClient(): GasStationClient {
   if (!gasStationClient) {
-    gasStationClient = new GasStationClient(getShinamiGasKey());
+    gasStationClient = new GasStationClient(getShinamiKey());
   }
   return gasStationClient;
 }

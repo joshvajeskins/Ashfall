@@ -5,6 +5,13 @@ import { DungeonGenerator } from '../dungeon';
 import { ParticleEffects, TransitionManager, RarityEffects, soundManager } from '../effects';
 import type { Character, Enemy, Room, DungeonLayout, Item } from '@/types';
 
+// Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (50px)
+const TILE_SCALE = 50 / 900; // Tiles: 900px -> 50px (fills 800x600 with 16x12 grid)
+const PLAYER_SCALE = 44 / 900; // Player: 900px -> 44px (fits inside tile)
+const ENEMY_SCALE = 40 / 900; // Enemy: 900px -> 40px
+const ITEM_SCALE = 30 / 900; // Items: 900px -> 30px (smaller pickup items)
+const BOSS_SCALE = 90 / 900; // Boss: 900px -> 90px (almost 2 tiles)
+
 interface DungeonEnemy {
   sprite: Phaser.GameObjects.Image;
   data: Enemy;
@@ -69,6 +76,9 @@ export class DungeonScene extends Phaser.Scene {
     this.setupCamera();
     this.createUI();
 
+    // Start dungeon music (will continue playing through room transitions)
+    soundManager.playMusic('mainMenu');
+
     // Fade in from black
     this.transitions.fadeIn(300);
 
@@ -91,7 +101,8 @@ export class DungeonScene extends Phaser.Scene {
       for (let x = 0; x < width; x++) {
         const isWall = x === 0 || x === width - 1 || y === 0 || y === height - 1;
         const key = isWall ? 'tile-wall' : 'tile-floor';
-        this.add.image(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, key);
+        this.add.image(x * TILE_SIZE + TILE_SIZE / 2, y * TILE_SIZE + TILE_SIZE / 2, key)
+          .setScale(TILE_SCALE);
       }
     }
 
@@ -118,7 +129,7 @@ export class DungeonScene extends Phaser.Scene {
       const doorY = pos.y * TILE_SIZE + TILE_SIZE / 2;
 
       // Door visual
-      this.add.image(doorX, doorY, 'tile-door').setDepth(5);
+      this.add.image(doorX, doorY, 'tile-door').setScale(TILE_SCALE).setDepth(5);
 
       // Door zone for collision
       const zone = this.add.zone(doorX, doorY, TILE_SIZE, TILE_SIZE);
@@ -132,7 +143,7 @@ export class DungeonScene extends Phaser.Scene {
     if (this.currentRoomId === floor.exitRoomId && this.currentRoom.cleared) {
       const exitX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
       const exitY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
-      this.add.image(exitX, exitY, 'tile-exit').setDepth(6);
+      this.add.image(exitX, exitY, 'tile-exit').setScale(TILE_SCALE).setDepth(6);
       const exitZone = this.add.zone(exitX, exitY, TILE_SIZE, TILE_SIZE);
       exitZone.setData('isFloorExit', true);
       this.doorZones.push(exitZone);
@@ -145,7 +156,9 @@ export class DungeonScene extends Phaser.Scene {
     const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
     // Use character class-specific sprite
     const playerTexture = `player-${this.character.class.toLowerCase()}`;
-    this.player = this.add.image(startX, startY, playerTexture).setDepth(10);
+    this.player = this.add.image(startX, startY, playerTexture)
+      .setScale(PLAYER_SCALE)
+      .setDepth(10);
   }
 
   private spawnEnemies(): void {
@@ -164,7 +177,7 @@ export class DungeonScene extends Phaser.Scene {
       const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
       const enemyType = enemyTypes[i % enemyTypes.length];
       const key = `enemy-${enemyType}`;
-      const sprite = this.add.image(x, y, key).setDepth(9);
+      const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
       this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType } });
     });
   }
@@ -184,7 +197,7 @@ export class DungeonScene extends Phaser.Scene {
   private spawnBoss(): void {
     const x = Math.floor(this.currentRoom.width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const y = Math.floor(this.currentRoom.height / 3) * TILE_SIZE + TILE_SIZE / 2;
-    const sprite = this.add.image(x, y, 'enemy-boss').setDepth(9).setScale(1.5);
+    const sprite = this.add.image(x, y, 'enemy-boss').setScale(BOSS_SCALE).setDepth(9);
 
     const bossEnemy: Enemy = {
       id: 999,
@@ -230,7 +243,7 @@ export class DungeonScene extends Phaser.Scene {
       const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
       const key = this.getItemSpriteKey(item);
-      const sprite = this.add.image(x, y, key).setDepth(5).setData('itemData', item);
+      const sprite = this.add.image(x, y, key).setScale(ITEM_SCALE).setDepth(5).setData('itemData', item);
       this.items.push(sprite);
 
       // Add sparkle effect for items
@@ -441,7 +454,7 @@ export class DungeonScene extends Phaser.Scene {
     const { width, height } = this.currentRoom;
     const exitX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const exitY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2 + TILE_SIZE;
-    this.add.image(exitX, exitY, 'tile-exit').setDepth(6);
+    this.add.image(exitX, exitY, 'tile-exit').setScale(TILE_SCALE).setDepth(6);
     const exitZone = this.add.zone(exitX, exitY, TILE_SIZE, TILE_SIZE);
     exitZone.setData('isFloorExit', true);
     this.doorZones.push(exitZone);
