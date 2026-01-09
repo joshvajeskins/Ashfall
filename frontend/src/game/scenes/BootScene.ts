@@ -17,7 +17,7 @@ const ASSETS = {
       'enemy-death', 'item-pickup', 'level-up', 'door-open',
       'button-click', 'menu-open', 'flee', 'error', 'victory'
     ],
-    music: ['menu', 'dungeon', 'combat', 'boss'],
+    music: ['menu', 'battle', 'victory', 'gameover'],
   },
 };
 
@@ -146,10 +146,8 @@ export class BootScene extends Phaser.Scene {
     // Generate fallback textures for any assets that failed to load
     this.generateFallbackTextures();
 
+    // Emit ready - GameCanvas handles scene transitions
     gameEvents.emit(GAME_EVENTS.SCENE_READY, 'BootScene');
-    this.time.delayedCall(500, () => {
-      this.scene.start('MenuScene');
-    });
   }
 
   private generateFallbackTextures(): void {
