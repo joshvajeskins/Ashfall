@@ -55,11 +55,12 @@ export class DungeonScene extends Phaser.Scene {
   private transitions!: TransitionManager;
   private rarityEffects!: RarityEffects;
 
-  // Floor stats tracking
+  // Floor stats tracking (persisted across room transitions)
   private floorStats = {
     enemiesKilled: 0,
     itemsCollected: 0,
     xpEarned: 0,
+    collectedItems: [] as Item[], // Store actual item data for display
   };
 
   // Floor transition overlay
@@ -73,8 +74,16 @@ export class DungeonScene extends Phaser.Scene {
   private levelUpHandler!: () => void;
   private entryDirection: string | null = null;
 
-  init(data: { character: Character; dungeonLayout?: DungeonLayout; floor?: number; roomId?: number; entryDirection?: string }): void {
+  init(data: {
+    character: Character;
+    dungeonLayout?: DungeonLayout;
+    floor?: number;
+    roomId?: number;
+    entryDirection?: string;
+    floorStats?: typeof this.floorStats;
+  }): void {
     this.character = data.character;
+    const previousFloor = this.currentFloor;
     this.currentFloor = data.floor ?? 1;
     this.currentRoomId = data.roomId ?? 0;
     this.entryDirection = data.entryDirection ?? null;
@@ -85,12 +94,19 @@ export class DungeonScene extends Phaser.Scene {
     this.isWaitingForFloorTx = false;
     this.floorTransitionOverlay = null;
 
-    // Reset floor stats for new floor
-    this.floorStats = {
-      enemiesKilled: 0,
-      itemsCollected: 0,
-      xpEarned: 0,
-    };
+    // Preserve floor stats if passed (room transitions within same floor)
+    // Only reset when starting a new floor or fresh dungeon entry
+    if (data.floorStats) {
+      this.floorStats = data.floorStats;
+    } else if (this.currentFloor !== previousFloor || !previousFloor) {
+      // Reset floor stats for new floor
+      this.floorStats = {
+        enemiesKilled: 0,
+        itemsCollected: 0,
+        xpEarned: 0,
+        collectedItems: [],
+      };
+    }
 
     if (data.dungeonLayout) {
       this.dungeonLayout = data.dungeonLayout;
@@ -650,6 +666,7 @@ export class DungeonScene extends Phaser.Scene {
         floor: this.currentFloor,
         roomId: targetRoomId,
         entryDirection,
+        floorStats: this.floorStats, // Preserve stats across room transitions
       });
     });
   }
@@ -721,85 +738,150 @@ export class DungeonScene extends Phaser.Scene {
     const overlay = this.add.container(0, 0).setDepth(1000).setScrollFactor(0);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x000000, 0.85);
+    bg.fillStyle(0x000000, 0.9);
     bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     overlay.add(bg);
 
     const centerX = GAME_WIDTH / 2;
-    let y = 120;
+    let y = 60;
 
     // Floor complete title
     const title = this.add.text(centerX, y, `FLOOR ${completedFloor} COMPLETE`, {
       fontFamily: 'monospace',
-      fontSize: '32px',
+      fontSize: '28px',
       color: '#ffa500',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     overlay.add(title);
 
-    y += 60;
+    y += 45;
 
-    // Stats section
-    const statsTitle = this.add.text(centerX, y, '--- Floor Stats ---', {
+    // Combat stats section
+    const statsTitle = this.add.text(centerX, y, '--- Combat Stats ---', {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: '14px',
       color: '#888888',
     }).setOrigin(0.5);
     overlay.add(statsTitle);
 
-    y += 40;
+    y += 28;
 
     const stats = [
       { label: 'Enemies Killed', value: this.floorStats.enemiesKilled, color: '#ff6666' },
-      { label: 'Items Collected', value: this.floorStats.itemsCollected, color: '#66ff66' },
-      { label: 'XP Earned', value: this.floorStats.xpEarned, color: '#6666ff' },
+      { label: 'XP Earned', value: `+${this.floorStats.xpEarned}`, color: '#6666ff' },
     ];
 
     stats.forEach(stat => {
       const text = this.add.text(centerX, y, `${stat.label}: ${stat.value}`, {
         fontFamily: 'monospace',
-        fontSize: '20px',
+        fontSize: '16px',
         color: stat.color,
       }).setOrigin(0.5);
       overlay.add(text);
-      y += 35;
+      y += 25;
     });
 
-    y += 30;
+    y += 15;
 
-    // Character status section
-    const charTitle = this.add.text(centerX, y, '--- Character Status ---', {
+    // Loot section with item images
+    const lootTitle = this.add.text(centerX, y, `--- Loot Collected (${this.floorStats.itemsCollected}) ---`, {
       fontFamily: 'monospace',
-      fontSize: '18px',
+      fontSize: '14px',
+      color: '#888888',
+    }).setOrigin(0.5);
+    overlay.add(lootTitle);
+
+    y += 25;
+
+    if (this.floorStats.collectedItems.length > 0) {
+      // Display items in a grid (max 4 per row)
+      const itemSize = 40;
+      const itemSpacing = 10;
+      const maxPerRow = 4;
+      const items = this.floorStats.collectedItems;
+      const totalRows = Math.ceil(items.length / maxPerRow);
+      const startY = y;
+
+      items.forEach((item, index) => {
+        const row = Math.floor(index / maxPerRow);
+        const col = index % maxPerRow;
+        const itemsInThisRow = Math.min(maxPerRow, items.length - row * maxPerRow);
+        const rowWidth = itemsInThisRow * (itemSize + itemSpacing) - itemSpacing;
+        const rowStartX = centerX - rowWidth / 2 + itemSize / 2;
+
+        const itemX = rowStartX + col * (itemSize + itemSpacing);
+        const itemY = startY + row * (itemSize + 35);
+
+        // Item background with rarity color
+        const rarityColors: Record<string, number> = {
+          Common: 0x888888,
+          Uncommon: 0x44aa44,
+          Rare: 0x4488ff,
+          Epic: 0xaa44aa,
+          Legendary: 0xffaa00,
+        };
+        const rarityColor = rarityColors[item.rarity] ?? 0x888888;
+
+        const itemBg = this.add.graphics();
+        itemBg.fillStyle(0x222222, 1);
+        itemBg.fillRoundedRect(itemX - itemSize / 2 - 2, itemY - itemSize / 2 - 2, itemSize + 4, itemSize + 4, 4);
+        itemBg.lineStyle(2, rarityColor, 1);
+        itemBg.strokeRoundedRect(itemX - itemSize / 2 - 2, itemY - itemSize / 2 - 2, itemSize + 4, itemSize + 4, 4);
+        overlay.add(itemBg);
+
+        // Item sprite
+        const spriteKey = this.getItemSpriteKey(item);
+        const itemSprite = this.add.image(itemX, itemY, spriteKey)
+          .setDisplaySize(itemSize - 8, itemSize - 8);
+        overlay.add(itemSprite);
+
+        // Item name below (truncated)
+        const displayName = item.name.length > 8 ? item.name.substring(0, 7) + '…' : item.name;
+        const nameText = this.add.text(itemX, itemY + itemSize / 2 + 8, displayName, {
+          fontFamily: 'monospace',
+          fontSize: '10px',
+          color: `#${rarityColor.toString(16).padStart(6, '0')}`,
+        }).setOrigin(0.5);
+        overlay.add(nameText);
+      });
+
+      y = startY + totalRows * (itemSize + 35) + 10;
+    } else {
+      const noLoot = this.add.text(centerX, y, 'No items collected', {
+        fontFamily: 'monospace',
+        fontSize: '14px',
+        color: '#666666',
+      }).setOrigin(0.5);
+      overlay.add(noLoot);
+      y += 30;
+    }
+
+    y += 15;
+
+    // Character status section (compact)
+    const charTitle = this.add.text(centerX, y, '--- Character ---', {
+      fontFamily: 'monospace',
+      fontSize: '14px',
       color: '#888888',
     }).setOrigin(0.5);
     overlay.add(charTitle);
 
-    y += 40;
+    y += 25;
 
-    const charStats = [
-      { label: 'Level', value: this.character.level, color: '#ffffff' },
-      { label: 'Health', value: `${this.character.health}/${this.character.maxHealth}`, color: '#ff4444' },
-      { label: 'Mana', value: `${this.character.mana}/${this.character.maxMana}`, color: '#4488ff' },
-      { label: 'Total XP', value: this.character.experience, color: '#ffff44' },
-    ];
-
-    charStats.forEach(stat => {
-      const text = this.add.text(centerX, y, `${stat.label}: ${stat.value}`, {
-        fontFamily: 'monospace',
-        fontSize: '18px',
-        color: stat.color,
-      }).setOrigin(0.5);
-      overlay.add(text);
-      y += 30;
-    });
+    const charStatus = `Lv.${this.character.level}  |  HP: ${this.character.health}/${this.character.maxHealth}  |  MP: ${this.character.mana}/${this.character.maxMana}`;
+    const charText = this.add.text(centerX, y, charStatus, {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      color: '#ffffff',
+    }).setOrigin(0.5);
+    overlay.add(charText);
 
     y += 40;
 
     // Loading status
     const statusText = this.add.text(centerX, y, 'Saving progress to blockchain...', {
       fontFamily: 'monospace',
-      fontSize: '16px',
+      fontSize: '14px',
       color: '#aaaaaa',
     }).setOrigin(0.5);
     statusText.setName('statusText');
@@ -808,7 +890,7 @@ export class DungeonScene extends Phaser.Scene {
     // Spinning loader
     const loader = this.add.graphics();
     loader.setName('loader');
-    this.drawLoader(loader, centerX, y + 40);
+    this.drawLoader(loader, centerX, y + 35);
     overlay.add(loader);
 
     // Animate loader
@@ -892,6 +974,7 @@ export class DungeonScene extends Phaser.Scene {
 
         // Track item collection stats
         this.floorStats.itemsCollected++;
+        this.floorStats.collectedItems.push(itemData);
 
         // Visual/audio feedback immediately (transaction in background)
         soundManager.play('itemPickup');
