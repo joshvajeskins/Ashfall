@@ -43,7 +43,6 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
         onReady?.();
         // Go directly to DungeonScene, skip MenuScene entirely
         if (startInDungeon && !hasStartedDungeon.current) {
-          // Get character from store directly (more reliable than ref)
           const currentCharacter = useGameStore.getState().character;
           hasStartedDungeon.current = true;
           gameRef.current?.scene.start('DungeonScene', { character: currentCharacter });
@@ -59,6 +58,8 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
       gameEvents.removeAllListeners();
       gameRef.current?.destroy(true);
       gameRef.current = null;
+      // Reset flag so next mount can start dungeon
+      hasStartedDungeon.current = false;
     };
   }, [onReady, startInDungeon]);
 
