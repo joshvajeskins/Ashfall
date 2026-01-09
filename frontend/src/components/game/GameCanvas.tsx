@@ -4,7 +4,6 @@ import { useEffect, useRef } from 'react';
 import * as Phaser from 'phaser';
 import { gameConfig } from '@/game/config';
 import { BootScene } from '@/game/scenes/BootScene';
-import { MenuScene } from '@/game/scenes/MenuScene';
 import { DungeonScene } from '@/game/scenes/DungeonScene';
 import { CombatScene } from '@/game/scenes/CombatScene';
 import { DeathScene } from '@/game/scenes/DeathScene';
@@ -15,50 +14,60 @@ import { BossWarning } from '@/components/ui/BossWarning';
 
 interface GameCanvasProps {
   onReady?: () => void;
+  startInDungeon?: boolean;
 }
 
-export function GameCanvas({ onReady }: GameCanvasProps) {
+export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) {
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const hasStartedDungeon = useRef(false);
+  const characterRef = useRef(useGameStore.getState().character);
 
   const { character, enterDungeon, exitDungeon, addToInventory, die } = useGameStore();
 
-  // Initialize Phaser game
+  // Keep characterRef in sync
+  useEffect(() => {
+    characterRef.current = character;
+  }, [character]);
+
+  // Initialize Phaser game (only once)
   useEffect(() => {
     if (!containerRef.current || gameRef.current) return;
 
     const config: Phaser.Types.Core.GameConfig = {
       ...gameConfig,
       parent: containerRef.current,
-      scene: [BootScene, MenuScene, DungeonScene, CombatScene, DeathScene, VictoryScene],
+      scene: [BootScene, DungeonScene, CombatScene, DeathScene, VictoryScene],
     };
 
     gameRef.current = new Phaser.Game(config);
 
-    // Notify when ready
-    gameEvents.on(GAME_EVENTS.SCENE_READY, ((...args: unknown[]) => {
+    // Notify when ready and start dungeon directly (skip MenuScene)
+    const handleSceneReady = (...args: unknown[]) => {
       const sceneName = args[0] as string;
       if (sceneName === 'BootScene') {
         onReady?.();
+        // Go directly to DungeonScene, skip MenuScene entirely
+        if (startInDungeon && !hasStartedDungeon.current) {
+          const currentCharacter = characterRef.current;
+          if (currentCharacter) {
+            hasStartedDungeon.current = true;
+            gameRef.current?.scene.start('DungeonScene', { character: currentCharacter });
+            gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
+          }
+        }
       }
-    }) as (...args: unknown[]) => void);
+    };
+
+    gameEvents.on(GAME_EVENTS.SCENE_READY, handleSceneReady);
 
     return () => {
+      gameEvents.off(GAME_EVENTS.SCENE_READY, handleSceneReady);
       gameEvents.removeAllListeners();
       gameRef.current?.destroy(true);
       gameRef.current = null;
     };
-  }, [onReady]);
-
-  // Sync character to menu scene
-  useEffect(() => {
-    if (!gameRef.current) return;
-
-    const menuScene = gameRef.current.scene.getScene('MenuScene') as MenuScene | null;
-    if (menuScene?.updateCharacter) {
-      menuScene.updateCharacter(character);
-    }
-  }, [character]);
+  }, [onReady, startInDungeon]);
 
   // Setup game event listeners
   useEffect(() => {
