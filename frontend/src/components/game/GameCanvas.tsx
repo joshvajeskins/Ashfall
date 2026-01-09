@@ -21,14 +21,8 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
   const gameRef = useRef<Phaser.Game | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hasStartedDungeon = useRef(false);
-  const characterRef = useRef(useGameStore.getState().character);
 
-  const { character, enterDungeon, exitDungeon, addToInventory, die } = useGameStore();
-
-  // Keep characterRef in sync
-  useEffect(() => {
-    characterRef.current = character;
-  }, [character]);
+  const { enterDungeon, exitDungeon, addToInventory, die } = useGameStore();
 
   // Initialize Phaser game (only once)
   useEffect(() => {
@@ -49,12 +43,11 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
         onReady?.();
         // Go directly to DungeonScene, skip MenuScene entirely
         if (startInDungeon && !hasStartedDungeon.current) {
-          const currentCharacter = characterRef.current;
-          if (currentCharacter) {
-            hasStartedDungeon.current = true;
-            gameRef.current?.scene.start('DungeonScene', { character: currentCharacter });
-            gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
-          }
+          // Get character from store directly (more reliable than ref)
+          const currentCharacter = useGameStore.getState().character;
+          hasStartedDungeon.current = true;
+          gameRef.current?.scene.start('DungeonScene', { character: currentCharacter });
+          gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
         }
       }
     };
