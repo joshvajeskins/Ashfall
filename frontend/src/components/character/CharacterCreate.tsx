@@ -53,7 +53,7 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
   };
 
   const handleClose = () => {
-    soundManager.play('buttonClick');
+    soundManager.play('error');
     onClose();
   };
 
@@ -219,6 +219,8 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
               size="md"
               onClick={handleClose}
               disabled={isCreating}
+              soundType="cancel"
+              playSound={false}
             >
               Cancel
             </ImageButton>

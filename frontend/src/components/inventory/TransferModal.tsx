@@ -4,6 +4,7 @@ import { useState } from 'react';
 import type { Item } from '@/types';
 import { useItemActions } from '@/hooks';
 import { ItemTooltip } from './ItemTooltip';
+import { soundManager } from '@/game/effects/SoundManager';
 
 type TransferAction = 'deposit' | 'withdraw';
 
@@ -51,7 +52,10 @@ export function TransferModal({ item, action, onClose, onComplete }: TransferMod
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/70"
-        onClick={onClose}
+        onClick={() => {
+          soundManager.play('error');
+          onClose();
+        }}
       />
 
       {/* Modal */}
@@ -60,7 +64,10 @@ export function TransferModal({ item, action, onClose, onComplete }: TransferMod
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-700">
           <h3 className="text-lg font-semibold text-white">{title}</h3>
           <button
-            onClick={onClose}
+            onClick={() => {
+              soundManager.play('error');
+              onClose();
+            }}
             className="p-1 text-zinc-400 hover:text-white transition-colors"
             disabled={isLoading}
           >
@@ -110,14 +117,20 @@ export function TransferModal({ item, action, onClose, onComplete }: TransferMod
         {/* Actions */}
         <div className="flex gap-3 px-4 py-3 border-t border-zinc-700">
           <button
-            onClick={onClose}
+            onClick={() => {
+              soundManager.play('error');
+              onClose();
+            }}
             disabled={isLoading}
             className="flex-1 px-4 py-2 text-sm font-medium text-zinc-300 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={handleConfirm}
+            onClick={() => {
+              soundManager.play('buttonClick');
+              handleConfirm();
+            }}
             disabled={isLoading}
             className={`
               flex-1 px-4 py-2 text-sm font-medium rounded-lg transition-colors

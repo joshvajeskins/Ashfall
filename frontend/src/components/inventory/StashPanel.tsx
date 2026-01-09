@@ -4,6 +4,7 @@ import type { Item } from '@/types';
 import { useStash, useItemActions } from '@/hooks';
 import { useUIStore } from '@/stores/uiStore';
 import { ItemCard } from './ItemCard';
+import { soundManager } from '@/game/effects/SoundManager';
 
 interface StashPanelProps {
   onClose?: () => void;
@@ -29,7 +30,10 @@ export function StashPanel({ onClose }: StashPanelProps) {
         </div>
         {onClose && (
           <button
-            onClick={onClose}
+            onClick={() => {
+              soundManager.play('error');
+              onClose();
+            }}
             className="p-1 text-zinc-400 hover:text-white transition-colors"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

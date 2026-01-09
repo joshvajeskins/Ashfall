@@ -31,7 +31,6 @@ function LootItem({ item, onPickup, onLeave }: LootItemProps) {
   };
 
   const handleLeave = () => {
-    soundManager.play('buttonClick');
     onLeave(item);
   };
 
@@ -68,7 +67,7 @@ function LootItem({ item, onPickup, onLeave }: LootItemProps) {
         <ImageButton variant="primary" size="sm" onClick={handlePickup}>
           TAKE
         </ImageButton>
-        <ImageButton variant="secondary" size="sm" onClick={handleLeave}>
+        <ImageButton variant="secondary" size="sm" onClick={handleLeave} soundType="cancel">
           LEAVE
         </ImageButton>
       </div>
@@ -97,6 +96,7 @@ export function LootModal() {
   };
 
   const handleLeave = (item: Item) => {
+    soundManager.play('error');
     setRemainingItems((prev) => prev.filter((i) => i.id !== item.id));
   };
 
@@ -110,12 +110,11 @@ export function LootModal() {
   };
 
   const handleLeaveAll = () => {
-    soundManager.play('buttonClick');
+    soundManager.play('error');
     setRemainingItems([]);
   };
 
   const handleClose = () => {
-    soundManager.play('buttonClick');
     closeModal();
     gameEvents.emit(GAME_EVENTS.UI_RESUME_GAME);
   };
@@ -171,7 +170,7 @@ export function LootModal() {
               <ImageButton variant="primary" size="sm" onClick={handlePickupAll}>
                 TAKE ALL
               </ImageButton>
-              <ImageButton variant="secondary" size="sm" onClick={handleLeaveAll}>
+              <ImageButton variant="secondary" size="sm" onClick={handleLeaveAll} soundType="cancel" playSound={false}>
                 LEAVE ALL
               </ImageButton>
             </div>
@@ -209,7 +208,7 @@ export function LootModal() {
                 Auto-pickup
               </span>
             </label>
-            <ImageButton variant="secondary" size="sm" onClick={handleClose}>
+            <ImageButton variant="secondary" size="sm" onClick={handleClose} soundType="cancel">
               CLOSE
             </ImageButton>
           </div>

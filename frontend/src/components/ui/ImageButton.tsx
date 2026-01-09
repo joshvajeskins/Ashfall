@@ -5,12 +5,14 @@ import { soundManager } from '@/game/effects/SoundManager';
 
 type ButtonVariant = 'primary' | 'secondary';
 type ButtonSize = 'sm' | 'md' | 'lg';
+type SoundType = 'proceed' | 'cancel';
 
 interface ImageButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
   size?: ButtonSize;
   children: React.ReactNode;
   playSound?: boolean;
+  soundType?: SoundType;
 }
 
 const BUTTON_IMAGES: Record<ButtonVariant, { normal: string; hover: string; pressed: string }> = {
@@ -40,6 +42,7 @@ export function ImageButton({
   onClick,
   disabled,
   playSound = true,
+  soundType = 'proceed',
   className = '',
   style,
   ...props
@@ -51,10 +54,10 @@ export function ImageButton({
   const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (playSound) {
-      soundManager.play('buttonClick');
+      soundManager.play(soundType === 'cancel' ? 'error' : 'buttonClick');
     }
     onClick?.(e);
-  }, [disabled, playSound, onClick]);
+  }, [disabled, playSound, soundType, onClick]);
 
   const handleMouseEnter = () => !disabled && setState('hover');
   const handleMouseLeave = () => setState('normal');
