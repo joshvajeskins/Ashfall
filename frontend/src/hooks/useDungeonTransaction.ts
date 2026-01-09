@@ -117,7 +117,7 @@ export function useDungeonTransaction() {
 
   /**
    * Enter dungeon - User wallet signs (gas sponsored)
-   * Syncs character state from chain before entering
+   * First resets any stale dungeon state, then syncs character and enters
    */
   const enterDungeon = useCallback(
     async (dungeonId: number): Promise<DungeonResult> => {
@@ -127,6 +127,16 @@ export function useDungeonTransaction() {
 
       setIsPending(true);
       setLastError(null);
+
+      // First, try to reset any stale dungeon state by calling exit
+      // This handles cases where user closed browser mid-dungeon
+      try {
+        console.log('[useDungeonTransaction] Resetting stale dungeon state...');
+        await exitDungeonSuccess(movementWallet.address);
+      } catch {
+        // Ignore errors - player might not be in dungeon
+        console.log('[useDungeonTransaction] No stale dungeon state to reset');
+      }
 
       // Sync character state from chain BEFORE entering dungeon
       await syncCharacterFromChain();

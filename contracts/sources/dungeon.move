@@ -161,11 +161,9 @@ module ashfall::dungeon {
         assert!(hero::character_exists(player), E_NO_CHARACTER);
         assert!(hero::is_character_alive(player), E_CHARACTER_DEAD);
 
-        // Check not already in dungeon
-        if (exists<DungeonRun>(player)) {
-            let run = borrow_global<DungeonRun>(player);
-            assert!(!run.is_active, E_ALREADY_IN_DUNGEON);
-        };
+        // Allow re-entry anytime - this resets the dungeon run
+        // Player may have exited browser/game without calling exit transaction
+        // Re-entering resets all state and burns any leftover pending loot
 
         let now = timestamp::now_seconds();
 
