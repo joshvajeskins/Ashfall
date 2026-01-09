@@ -5,9 +5,9 @@ import {
   Network,
   AccountAddress,
   Serializer,
+  generateSigningMessageForTransaction,
 } from '@aptos-labs/ts-sdk';
 import { GasStationClient } from '@shinami/clients/aptos';
-import { sha3_256 } from '@noble/hashes/sha3.js';
 
 const MOVEMENT_TESTNET_CONFIG = {
   rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
@@ -46,15 +46,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get Shinami Gas Station key
-    const gasKey = process.env.SHINAMI_GAS_STATION_KEY;
-    if (!gasKey) {
+    // Get Shinami key (server-side only)
+    const shinamiKey = process.env.SHINAMI_KEY;
+    if (!shinamiKey) {
       // Fall back to non-sponsored transaction if no key
-      console.warn('SHINAMI_GAS_STATION_KEY not set, falling back to standard tx');
+      console.warn('SHINAMI_KEY not set, falling back to standard tx');
       return buildStandardTransaction(sender, fnName, typeArguments, functionArguments);
     }
 
-    const gasClient = new GasStationClient(gasKey);
+    const gasClient = new GasStationClient(shinamiKey);
 
     // Build the transaction with fee payer enabled
     const transaction = await aptosClient.transaction.build.simple({
@@ -82,27 +82,13 @@ export async function POST(request: NextRequest) {
     const rawTxnBytes = rawTxn.bcsToBytes();
     const rawTxnHex = Buffer.from(rawTxnBytes).toString('hex');
 
-    // Generate signing hash for the sender
-    // For fee payer transactions: sha3_256(sha3_256("APTOS::RawTransactionWithData") || bcs(RawTransactionWithData))
-    const prefixBytes = Buffer.from('APTOS::RawTransactionWithData', 'utf8');
-    const prefixHash = sha3_256(prefixBytes);
+    // Generate signing message using SDK's built-in function
+    // This properly handles fee payer transactions with correct domain separator
+    const signingMessage = generateSigningMessageForTransaction(transaction);
 
-    // Serialize RawTransactionWithData (includes fee payer info)
-    const serializer = new Serializer();
-    transaction.rawTransaction.serialize(serializer);
-    // Add fee payer variant (1 = with fee payer)
-    serializer.serializeU8(1);
-    // Add fee payer address
-    AccountAddress.from(feePayerAddress).serialize(serializer);
-
-    const rawTxnWithDataBytes = serializer.toUint8Array();
-
-    const messageToSign = new Uint8Array(prefixHash.length + rawTxnWithDataBytes.length);
-    messageToSign.set(prefixHash);
-    messageToSign.set(rawTxnWithDataBytes, prefixHash.length);
-
-    const signingHash = sha3_256(messageToSign);
-    const hashHex = Buffer.from(signingHash).toString('hex');
+    // Pass the signing message directly to Privy (hex-encoded, no hashing)
+    // Privy signs the raw message bytes, Ed25519 handles internal hashing
+    const hashHex = Buffer.from(signingMessage).toString('hex');
 
     // Serialize fee payer authenticator for later submission
     const feePayerAuthSerializer = new Serializer();
@@ -146,15 +132,10 @@ async function buildStandardTransaction(
   const rawTxnBytes = rawTxn.bcsToBytes();
   const rawTxnHex = Buffer.from(rawTxnBytes).toString('hex');
 
-  const prefixBytes = Buffer.from('APTOS::RawTransaction', 'utf8');
-  const prefixHash = sha3_256(prefixBytes);
-
-  const messageToSign = new Uint8Array(prefixHash.length + rawTxnBytes.length);
-  messageToSign.set(prefixHash);
-  messageToSign.set(rawTxnBytes, prefixHash.length);
-
-  const signingHash = sha3_256(messageToSign);
-  const hashHex = Buffer.from(signingHash).toString('hex');
+  // Use SDK's built-in function for consistent signing message generation
+  // Pass the signing message directly to Privy (hex-encoded, no hashing)
+  const signingMessage = generateSigningMessageForTransaction(transaction);
+  const hashHex = Buffer.from(signingMessage).toString('hex');
 
   return NextResponse.json({
     hash: `0x${hashHex}`,

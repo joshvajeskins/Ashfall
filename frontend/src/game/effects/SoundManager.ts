@@ -1,7 +1,11 @@
 type SoundType =
-  | 'attack' | 'hit' | 'critical' | 'enemyDeath' | 'playerDeath'
-  | 'buttonClick' | 'itemPickup' | 'menuOpen' | 'menuClose' | 'levelUp'
-  | 'dungeonAmbient' | 'victory' | 'error' | 'heal' | 'flee';
+  | 'attack' | 'hit' | 'critical' | 'playerHurt' | 'playerDeath' | 'enemyDeath'
+  | 'itemPickup' | 'itemDrop' | 'itemEquip' | 'potionDrink'
+  | 'levelUp' | 'victory' | 'doorOpen' | 'enemySpawn' | 'roomClear' | 'flee'
+  | 'bossRoar' | 'bossDefeated'
+  | 'buttonClick' | 'menuOpen' | 'error' | 'heal' | 'footstep';
+
+type MusicTrack = 'mainMenu' | 'battle' | 'victory' | 'gameOver';
 
 interface SoundConfig {
   volume: number;
@@ -10,373 +14,241 @@ interface SoundConfig {
   sfxVolume: number;
 }
 
+// Sound file paths mapping
+const SOUND_PATHS: Record<SoundType, string> = {
+  attack: '/assets/audio/sfx/attack.mp3',
+  hit: '/assets/audio/sfx/hit.mp3',
+  critical: '/assets/audio/sfx/critical.mp3',
+  playerHurt: '/assets/audio/sfx/player-hurt.mp3',
+  playerDeath: '/assets/audio/sfx/player-death.mp3',
+  enemyDeath: '/assets/audio/sfx/enemy-death.mp3',
+  itemPickup: '/assets/audio/sfx/item-pickup.mp3',
+  itemDrop: '/assets/audio/sfx/item-drop.mp3',
+  itemEquip: '/assets/audio/sfx/item-equip.mp3',
+  potionDrink: '/assets/audio/sfx/potion-drink.mp3',
+  levelUp: '/assets/audio/sfx/level-up.mp3',
+  victory: '/assets/audio/sfx/victory.mp3',
+  doorOpen: '/assets/audio/sfx/door-open.mp3',
+  enemySpawn: '/assets/audio/sfx/enemy-spawn.mp3',
+  roomClear: '/assets/audio/sfx/room-clear.mp3',
+  flee: '/assets/audio/sfx/flee.mp3',
+  bossRoar: '/assets/audio/sfx/boss-roar.mp3',
+  bossDefeated: '/assets/audio/sfx/boss-defeated.mp3',
+  buttonClick: '/assets/audio/sfx/button-click.mp3',
+  menuOpen: '/assets/audio/sfx/menu-open.mp3',
+  error: '/assets/audio/sfx/error.mp3',
+  heal: '/assets/audio/sfx/heal.mp3',
+  footstep: '/assets/audio/sfx/footstep.mp3',
+};
+
+// Music file paths
+const MUSIC_PATHS: Record<MusicTrack, string> = {
+  mainMenu: '/assets/audio/music/menu.mp3',
+  battle: '/assets/audio/music/battle.mp3',
+  victory: '/assets/audio/music/victory.mp3',
+  gameOver: '/assets/audio/music/gameover.mp3',
+};
+
 export class SoundManager {
-  private audioContext: AudioContext | null = null;
+  private sounds: Map<string, HTMLAudioElement[]> = new Map();
+  private music: HTMLAudioElement | null = null;
+  private currentMusicTrack: MusicTrack | null = null;
+  private pendingMusicTrack: MusicTrack | null = null;
   private config: SoundConfig = {
     volume: 0.5,
     muted: false,
     musicVolume: 0.3,
     sfxVolume: 0.7
   };
+  private isInitialized = false;
+  private hasUserInteracted = false;
 
   constructor() {
-    // Delay audio context initialization to avoid SSR issues
     if (typeof window !== 'undefined') {
-      this.initAudioContext();
+      this.preloadSounds();
+      this.setupUserInteractionListener();
     }
   }
 
-  private initAudioContext(): void {
-    if (typeof window === 'undefined') return;
-    try {
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-    } catch {
-      console.warn('Web Audio API not supported');
-    }
+  private setupUserInteractionListener(): void {
+    const handleInteraction = () => {
+      if (this.hasUserInteracted) return;
+      this.hasUserInteracted = true;
+      console.log('[SoundManager] User interaction detected, audio unlocked');
+
+      // If there's a pending music track that failed due to autoplay, play it now
+      if (this.pendingMusicTrack && (!this.music || this.music.paused)) {
+        console.log(`[SoundManager] Resuming pending music: ${this.pendingMusicTrack}`);
+        this.playMusic(this.pendingMusicTrack);
+      }
+
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
+    };
+
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('keydown', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
   }
 
-  private ensureContext(): AudioContext | null {
-    if (typeof window === 'undefined') return null;
-    if (!this.audioContext) {
-      this.initAudioContext();
-    }
-    if (this.audioContext?.state === 'suspended') {
-      this.audioContext.resume();
-    }
-    return this.audioContext;
+  private preloadSounds(): void {
+    // Preload all sound effects with audio pool for concurrent playback
+    Object.entries(SOUND_PATHS).forEach(([key, path]) => {
+      const pool: HTMLAudioElement[] = [];
+      // Create 3 instances per sound for overlapping plays
+      for (let i = 0; i < 3; i++) {
+        const audio = new Audio(path);
+        audio.preload = 'auto';
+        audio.volume = this.config.sfxVolume * this.config.volume;
+        pool.push(audio);
+      }
+      this.sounds.set(key, pool);
+    });
+    this.isInitialized = true;
   }
 
   play(type: SoundType): void {
-    if (this.config.muted || !this.audioContext) return;
+    if (this.config.muted || !this.isInitialized) return;
+    if (typeof window === 'undefined') return;
 
-    const ctx = this.ensureContext();
-    if (!ctx) return;
+    const pool = this.sounds.get(type);
+    if (!pool) return;
 
-    switch (type) {
-      case 'attack':
-        this.playAttack(ctx);
-        break;
-      case 'hit':
-        this.playHit(ctx);
-        break;
-      case 'critical':
-        this.playCritical(ctx);
-        break;
-      case 'enemyDeath':
-        this.playEnemyDeath(ctx);
-        break;
-      case 'playerDeath':
-        this.playPlayerDeath(ctx);
-        break;
-      case 'buttonClick':
-        this.playClick(ctx);
-        break;
-      case 'itemPickup':
-        this.playPickup(ctx);
-        break;
-      case 'menuOpen':
-        this.playMenuOpen(ctx);
-        break;
-      case 'menuClose':
-        this.playMenuClose(ctx);
-        break;
-      case 'levelUp':
-        this.playLevelUp(ctx);
-        break;
-      case 'victory':
-        this.playVictory(ctx);
-        break;
-      case 'error':
-        this.playError(ctx);
-        break;
-      case 'heal':
-        this.playHeal(ctx);
-        break;
-      case 'flee':
-        this.playFlee(ctx);
-        break;
+    // Find an available audio element in the pool
+    const audio = pool.find(a => a.paused || a.ended) || pool[0];
+    if (audio) {
+      audio.currentTime = 0;
+      audio.volume = this.config.sfxVolume * this.config.volume;
+      audio.play().catch(() => {
+        // Silently handle autoplay restrictions
+      });
     }
   }
 
-  private playAttack(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+  playMusic(track: MusicTrack): void {
+    if (typeof window === 'undefined') return;
+    if (this.currentMusicTrack === track && this.music && !this.music.paused) {
+      console.log(`[SoundManager] Music '${track}' already playing, skipping`);
+      return;
+    }
 
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(200, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.1);
+    console.log(`[SoundManager] Playing music: ${track}`);
 
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
+    // Stop current music
+    this.stopMusic();
 
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.1);
+    const path = MUSIC_PATHS[track];
+    if (!path) {
+      console.error(`[SoundManager] Music track not found: ${track}`);
+      return;
+    }
+
+    this.music = new Audio(path);
+    this.music.loop = true;
+    this.music.volume = this.config.muted ? 0 : this.config.musicVolume * this.config.volume;
+    this.currentMusicTrack = track;
+
+    this.music.play()
+      .then(() => {
+        console.log(`[SoundManager] Music '${track}' started successfully`);
+        this.pendingMusicTrack = null;
+      })
+      .catch((err) => {
+        console.warn(`[SoundManager] Music '${track}' blocked by browser (autoplay policy). Error:`, err.message);
+        console.warn('[SoundManager] Will auto-play after user interaction (click/tap/keypress)');
+        this.pendingMusicTrack = track;
+      });
   }
 
-  private playHit(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(150, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(50, ctx.currentTime + 0.15);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.4, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.15);
+  stopMusic(): void {
+    if (this.music) {
+      this.music.pause();
+      this.music.currentTime = 0;
+      this.music = null;
+      this.currentMusicTrack = null;
+    }
   }
 
-  private playCritical(ctx: AudioContext): void {
-    // High impact sound
-    this.playHit(ctx);
+  fadeOutMusic(duration: number = 1000): void {
+    if (!this.music) return;
 
-    setTimeout(() => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
+    const startVolume = this.music.volume;
+    const steps = 20;
+    const stepDuration = duration / steps;
+    const volumeStep = startVolume / steps;
 
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(800, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.2);
-
-      gain.gain.setValueAtTime(this.config.sfxVolume * 0.3, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-
-      osc.start(ctx.currentTime);
-      osc.stop(ctx.currentTime + 0.2);
-    }, 50);
-  }
-
-  private playEnemyDeath(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(300, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(30, ctx.currentTime + 0.4);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.4);
-  }
-
-  private playPlayerDeath(ctx: AudioContext): void {
-    const notes = [200, 150, 100, 50];
-    notes.forEach((freq, i) => {
-      setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-        gain.gain.setValueAtTime(this.config.sfxVolume * 0.4, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-      }, i * 150);
-    });
-  }
-
-  private playClick(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, ctx.currentTime);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.05);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.05);
-  }
-
-  private playPickup(ctx: AudioContext): void {
-    const notes = [400, 600, 800];
-    notes.forEach((freq, i) => {
-      setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-        gain.gain.setValueAtTime(this.config.sfxVolume * 0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.1);
-      }, i * 50);
-    });
-  }
-
-  private playMenuOpen(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(300, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(500, ctx.currentTime + 0.1);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.1);
-  }
-
-  private playMenuClose(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(500, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.1);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.1);
-  }
-
-  private playLevelUp(ctx: AudioContext): void {
-    const notes = [400, 500, 600, 800, 1000];
-    notes.forEach((freq, i) => {
-      setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-        gain.gain.setValueAtTime(this.config.sfxVolume * 0.25, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.2);
-      }, i * 80);
-    });
-  }
-
-  private playVictory(ctx: AudioContext): void {
-    const melody = [523, 659, 784, 1047];
-    melody.forEach((freq, i) => {
-      setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-        gain.gain.setValueAtTime(this.config.sfxVolume * 0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.3);
-      }, i * 150);
-    });
-  }
-
-  private playError(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(100, ctx.currentTime);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.2);
-  }
-
-  private playHeal(ctx: AudioContext): void {
-    const notes = [400, 500, 600];
-    notes.forEach((freq, i) => {
-      setTimeout(() => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, ctx.currentTime);
-
-        gain.gain.setValueAtTime(this.config.sfxVolume * 0.2, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.15);
-
-        osc.start(ctx.currentTime);
-        osc.stop(ctx.currentTime + 0.15);
-      }, i * 60);
-    });
-  }
-
-  private playFlee(ctx: AudioContext): void {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
-
-    gain.gain.setValueAtTime(this.config.sfxVolume * 0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.3);
+    let currentStep = 0;
+    const fadeInterval = setInterval(() => {
+      currentStep++;
+      if (this.music) {
+        this.music.volume = Math.max(0, startVolume - (volumeStep * currentStep));
+      }
+      if (currentStep >= steps) {
+        clearInterval(fadeInterval);
+        this.stopMusic();
+      }
+    }, stepDuration);
   }
 
   setVolume(volume: number): void {
     this.config.volume = Math.max(0, Math.min(1, volume));
+    this.updateAllVolumes();
+  }
+
+  setSfxVolume(volume: number): void {
+    this.config.sfxVolume = Math.max(0, Math.min(1, volume));
+    this.updateAllVolumes();
+  }
+
+  setMusicVolume(volume: number): void {
+    this.config.musicVolume = Math.max(0, Math.min(1, volume));
+    if (this.music) {
+      this.music.volume = this.config.muted ? 0 : this.config.musicVolume * this.config.volume;
+    }
+  }
+
+  private updateAllVolumes(): void {
+    // Update all sound pools
+    this.sounds.forEach(pool => {
+      pool.forEach(audio => {
+        audio.volume = this.config.sfxVolume * this.config.volume;
+      });
+    });
+    // Update music
+    if (this.music) {
+      this.music.volume = this.config.muted ? 0 : this.config.musicVolume * this.config.volume;
+    }
   }
 
   setMuted(muted: boolean): void {
     this.config.muted = muted;
+    if (this.music) {
+      this.music.volume = muted ? 0 : this.config.musicVolume * this.config.volume;
+    }
   }
 
   toggleMute(): boolean {
     this.config.muted = !this.config.muted;
+    if (this.music) {
+      this.music.volume = this.config.muted ? 0 : this.config.musicVolume * this.config.volume;
+    }
     return this.config.muted;
   }
 
+  isMuted(): boolean {
+    return this.config.muted;
+  }
+
+  getCurrentTrack(): MusicTrack | null {
+    return this.currentMusicTrack;
+  }
+
   destroy(): void {
-    if (this.audioContext) {
-      this.audioContext.close();
-      this.audioContext = null;
-    }
+    this.stopMusic();
+    this.sounds.clear();
+    this.isInitialized = false;
   }
 }
 

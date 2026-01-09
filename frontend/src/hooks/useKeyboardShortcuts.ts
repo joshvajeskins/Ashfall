@@ -33,7 +33,7 @@ const shortcuts: ShortcutAction[] = [
       const store = useUIStore.getState();
       if (store.activeModal) {
         store.closeModal();
-        soundManager.play('menuClose');
+        soundManager.play('buttonClick');
       }
     },
     description: 'Close modal / menu'

@@ -62,7 +62,11 @@ export class CombatScene extends Phaser.Scene {
     this.createTurnIndicator();
     this.createCombatLog();
     this.addLogMessage(`Combat with ${this.enemy.name} begins!`);
+
+    // Switch to battle music
+    soundManager.playMusic('battle');
     soundManager.play('menuOpen');
+
     gameEvents.emit(GAME_EVENTS.COMBAT_START, { enemy: this.enemy });
     gameEvents.emit(GAME_EVENTS.SCENE_READY, 'CombatScene');
   }
@@ -418,6 +422,8 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private returnToDungeon(): void {
+    // Switch back to exploration music
+    soundManager.playMusic('mainMenu');
     this.scene.start('DungeonScene', {
       character: this.character,
       dungeonLayout: this.returnData.dungeonLayout,

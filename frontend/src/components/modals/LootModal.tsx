@@ -1,18 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useUIStore } from '@/stores/uiStore';
 import { useGameStore } from '@/stores/gameStore';
 import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
+import { ImagePanel, PanelDivider } from '@/components/ui/ImagePanel';
+import { ImageButton } from '@/components/ui/ImageButton';
+import { ImageSlot } from '@/components/ui/ImageSlot';
+import { soundManager } from '@/game/effects/SoundManager';
 import type { Item } from '@/types';
-
-const RARITY_COLORS: Record<string, string> = {
-  Common: 'border-gray-500 bg-gray-800/50',
-  Uncommon: 'border-green-500 bg-green-900/30',
-  Rare: 'border-blue-500 bg-blue-900/30',
-  Epic: 'border-purple-500 bg-purple-900/30',
-  Legendary: 'border-yellow-500 bg-yellow-900/30 animate-pulse',
-};
 
 const RARITY_TEXT: Record<string, string> = {
   Common: 'text-gray-400',
@@ -29,37 +25,52 @@ interface LootItemProps {
 }
 
 function LootItem({ item, onPickup, onLeave }: LootItemProps) {
+  const handlePickup = () => {
+    soundManager.play('itemPickup');
+    onPickup(item);
+  };
+
+  const handleLeave = () => {
+    soundManager.play('buttonClick');
+    onLeave(item);
+  };
+
   return (
-    <div className={`border rounded-lg p-3 ${RARITY_COLORS[item.rarity] || RARITY_COLORS.Common}`}>
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h4 className={`font-mono font-bold ${RARITY_TEXT[item.rarity] || RARITY_TEXT.Common}`}>
-            {item.name}
-          </h4>
-          <p className="text-xs text-gray-500 font-mono">{item.rarity} {item.type}</p>
+    <div
+      className="p-3 flex items-center gap-3"
+      style={{
+        backgroundImage: 'url(/assets/ui/panels/panel-small.png)',
+        backgroundSize: '100% 100%',
+        imageRendering: 'pixelated',
+      }}
+    >
+      <ImageSlot item={item} size="md" />
+
+      <div className="flex-1">
+        <h4
+          className={`font-bold ${RARITY_TEXT[item.rarity] || RARITY_TEXT.Common}`}
+          style={{ textShadow: '1px 1px 0 #000' }}
+        >
+          {item.name}
+        </h4>
+        <p className="text-xs text-gray-500" style={{ textShadow: '1px 1px 0 #000' }}>
+          {item.rarity} {item.type}
+        </p>
+        <div className="text-xs mt-1" style={{ textShadow: '1px 1px 0 #000' }}>
+          {item.stats.damage && <span className="text-red-400 mr-2">DMG: {item.stats.damage}</span>}
+          {item.stats.defense && <span className="text-blue-400 mr-2">DEF: {item.stats.defense}</span>}
+          {item.stats.health && <span className="text-green-400 mr-2">HP: +{item.stats.health}</span>}
+          {item.stats.mana && <span className="text-purple-400">MP: +{item.stats.mana}</span>}
         </div>
       </div>
 
-      <div className="text-xs text-gray-400 font-mono mb-3">
-        {item.stats.damage && <span className="text-red-400">DMG: {item.stats.damage} </span>}
-        {item.stats.defense && <span className="text-blue-400">DEF: {item.stats.defense} </span>}
-        {item.stats.health && <span className="text-green-400">HP: +{item.stats.health} </span>}
-        {item.stats.mana && <span className="text-purple-400">MP: +{item.stats.mana}</span>}
-      </div>
-
-      <div className="flex gap-2">
-        <button
-          onClick={() => onPickup(item)}
-          className="flex-1 py-1 px-2 bg-green-700 hover:bg-green-600 text-white text-xs font-mono rounded"
-        >
-          PICK UP
-        </button>
-        <button
-          onClick={() => onLeave(item)}
-          className="flex-1 py-1 px-2 bg-gray-700 hover:bg-gray-600 text-gray-300 text-xs font-mono rounded"
-        >
+      <div className="flex flex-col gap-1">
+        <ImageButton variant="primary" size="sm" onClick={handlePickup}>
+          TAKE
+        </ImageButton>
+        <ImageButton variant="secondary" size="sm" onClick={handleLeave}>
           LEAVE
-        </button>
+        </ImageButton>
       </div>
     </div>
   );
@@ -72,6 +83,13 @@ export function LootModal() {
 
   const isOpen = activeModal === 'loot';
 
+  useEffect(() => {
+    if (isOpen) {
+      soundManager.play('menuOpen');
+      setRemainingItems(lootState.items);
+    }
+  }, [isOpen, lootState.items]);
+
   const handlePickup = (item: Item) => {
     addPendingLoot(item);
     gameEvents.emit(GAME_EVENTS.LOOT_PICKUP, { item });
@@ -83,6 +101,7 @@ export function LootModal() {
   };
 
   const handlePickupAll = () => {
+    soundManager.play('itemPickup');
     remainingItems.forEach((item) => {
       addPendingLoot(item);
       gameEvents.emit(GAME_EVENTS.LOOT_PICKUP, { item });
@@ -91,28 +110,36 @@ export function LootModal() {
   };
 
   const handleLeaveAll = () => {
+    soundManager.play('buttonClick');
     setRemainingItems([]);
   };
 
   const handleClose = () => {
+    soundManager.play('buttonClick');
     closeModal();
     gameEvents.emit(GAME_EVENTS.UI_RESUME_GAME);
   };
 
   if (!isOpen) return null;
 
-  // Auto-close when all items are handled
+  // All items handled - show completion
   if (remainingItems.length === 0) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-        <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 max-w-sm">
-          <p className="text-gray-400 font-mono text-center mb-4">All items collected!</p>
-          <button
-            onClick={handleClose}
-            className="w-full py-2 bg-orange-600 hover:bg-orange-500 text-white font-mono rounded"
-          >
-            CONTINUE
-          </button>
+        <div className="relative max-w-sm w-full mx-4">
+          <ImagePanel size="small">
+            <p
+              className="text-center text-gray-300 mb-4"
+              style={{ textShadow: '1px 1px 0 #000' }}
+            >
+              All items collected!
+            </p>
+            <div className="flex justify-center">
+              <ImageButton variant="primary" size="md" onClick={handleClose}>
+                CONTINUE
+              </ImageButton>
+            </div>
+          </ImagePanel>
         </div>
       </div>
     );
@@ -120,57 +147,73 @@ export function LootModal() {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-      <div className="max-w-lg w-full mx-4 bg-gray-900 border border-yellow-600 rounded-lg p-4 max-h-[80vh] overflow-hidden flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-yellow-400 font-mono">LOOT DROPPED!</h2>
-          <span className="text-gray-500 font-mono text-sm">
-            {remainingItems.length} item{remainingItems.length !== 1 ? 's' : ''}
-          </span>
-        </div>
-
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={handlePickupAll}
-            className="flex-1 py-2 px-3 bg-green-700 hover:bg-green-600 text-white text-sm font-mono rounded"
+      <div className="relative max-w-lg w-full mx-4">
+        <ImagePanel size="large">
+          {/* Header */}
+          <h2
+            className="text-2xl font-bold text-yellow-400 text-center mb-4"
+            style={{ textShadow: '2px 2px 0 #000' }}
           >
-            PICK UP ALL
-          </button>
-          <button
-            onClick={handleLeaveAll}
-            className="flex-1 py-2 px-3 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-mono rounded"
-          >
-            LEAVE ALL
-          </button>
-        </div>
+            LOOT DROPPED!
+          </h2>
 
-        <div className="flex-1 overflow-y-auto space-y-2">
-          {remainingItems.map((item) => (
-            <LootItem
-              key={item.id}
-              item={item}
-              onPickup={handlePickup}
-              onLeave={handleLeave}
-            />
-          ))}
-        </div>
+          <PanelDivider />
 
-        <div className="mt-4 flex items-center justify-between border-t border-gray-700 pt-4">
-          <label className="flex items-center gap-2 text-gray-400 text-sm font-mono cursor-pointer">
-            <input
-              type="checkbox"
-              checked={lootState.autoPickup}
-              onChange={(e) => setAutoPickup(e.target.checked)}
-              className="form-checkbox rounded bg-gray-800 border-gray-600"
-            />
-            Auto-pickup
-          </label>
-          <button
-            onClick={handleClose}
-            className="py-2 px-4 bg-gray-700 hover:bg-gray-600 text-gray-300 text-sm font-mono rounded"
-          >
-            CLOSE
-          </button>
-        </div>
+          {/* Item count */}
+          <div className="flex justify-between items-center mb-4">
+            <span
+              className="text-gray-400 text-sm"
+              style={{ textShadow: '1px 1px 0 #000' }}
+            >
+              {remainingItems.length} item{remainingItems.length !== 1 ? 's' : ''} found
+            </span>
+            <div className="flex gap-2">
+              <ImageButton variant="primary" size="sm" onClick={handlePickupAll}>
+                TAKE ALL
+              </ImageButton>
+              <ImageButton variant="secondary" size="sm" onClick={handleLeaveAll}>
+                LEAVE ALL
+              </ImageButton>
+            </div>
+          </div>
+
+          <PanelDivider />
+
+          {/* Items list */}
+          <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-2">
+            {remainingItems.map((item) => (
+              <LootItem
+                key={item.id}
+                item={item}
+                onPickup={handlePickup}
+                onLeave={handleLeave}
+              />
+            ))}
+          </div>
+
+          <PanelDivider />
+
+          {/* Footer */}
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={lootState.autoPickup}
+                onChange={(e) => setAutoPickup(e.target.checked)}
+                className="w-4 h-4 accent-yellow-500"
+              />
+              <span
+                className="text-gray-400 text-sm"
+                style={{ textShadow: '1px 1px 0 #000' }}
+              >
+                Auto-pickup
+              </span>
+            </label>
+            <ImageButton variant="secondary" size="sm" onClick={handleClose}>
+              CLOSE
+            </ImageButton>
+          </div>
+        </ImagePanel>
       </div>
     </div>
   );

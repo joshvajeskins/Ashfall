@@ -1,4 +1,8 @@
 export { Button } from './Button';
+export { ImageButton } from './ImageButton';
+export { ImagePanel, PanelDivider } from './ImagePanel';
+export { ImageBar } from './ImageBar';
+export { ImageSlot } from './ImageSlot';
 export { LoadingSpinner } from './LoadingSpinner';
 export { TransactionPending } from './TransactionPending';
 export { ChainSyncIndicator } from './ChainSyncIndicator';

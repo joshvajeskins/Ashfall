@@ -4,6 +4,9 @@ import { useState } from 'react';
 import type { CharacterClass } from '@/types';
 import { CLASS_STATS, CLASS_DESCRIPTIONS } from '@/hooks/useCharacter';
 import { useCreateCharacter } from '@/hooks/useCreateCharacter';
+import { ImageButton } from '@/components/ui/ImageButton';
+import { ImagePanel, PanelDivider } from '@/components/ui/ImagePanel';
+import { soundManager } from '@/game/effects/SoundManager';
 
 interface CharacterCreateProps {
   onClose: () => void;
@@ -12,142 +15,223 @@ interface CharacterCreateProps {
 
 const CLASSES: CharacterClass[] = ['Warrior', 'Rogue', 'Mage'];
 
-const CLASS_COLORS: Record<CharacterClass, string> = {
-  Warrior: 'border-red-500 bg-red-950/30',
-  Rogue: 'border-green-500 bg-green-950/30',
-  Mage: 'border-blue-500 bg-blue-950/30',
-};
-
-// Character class images
 const CLASS_IMAGES: Record<CharacterClass, string> = {
   Warrior: '/assets/characters/warrior.png',
   Rogue: '/assets/characters/rogue.png',
   Mage: '/assets/characters/mage.png',
 };
 
+const CLASS_CARDS: Record<CharacterClass, string> = {
+  Warrior: '/assets/ui/cards/card-warrior.png',
+  Rogue: '/assets/ui/cards/card-rogue.png',
+  Mage: '/assets/ui/cards/card-mage.png',
+};
+
+const FRAME_PORTRAIT = '/assets/ui/decorative/frame-portrait.png';
+const ICON_CLOSE = '/assets/ui/icons/icon-close.png';
+
 export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
   const [selectedClass, setSelectedClass] = useState<CharacterClass | null>(null);
   const { createCharacter, isCreating, error } = useCreateCharacter();
 
+  const handleClassSelect = (cls: CharacterClass) => {
+    soundManager.play('buttonClick');
+    setSelectedClass(cls);
+  };
+
   const handleCreate = async () => {
     if (!selectedClass) return;
+    soundManager.play('buttonClick');
 
     const success = await createCharacter(selectedClass);
     if (success) {
+      soundManager.play('levelUp');
       onCreated();
+    } else {
+      soundManager.play('error');
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-      <div className="bg-zinc-900 border border-zinc-700 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-zinc-800">
-          <h2 className="text-xl font-bold text-white">Create Character</h2>
-          <button
-            onClick={onClose}
-            className="text-zinc-400 hover:text-white transition-colors"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
+  const handleClose = () => {
+    soundManager.play('buttonClick');
+    onClose();
+  };
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          <p className="text-zinc-400 text-sm">
-            Choose your class. This decision is permanent - choose wisely.
+  return (
+    <div
+      className="absolute left-0 right-0 bottom-0 flex items-center justify-center z-50 p-4"
+      style={{
+        top: 70, // Below header
+        backgroundImage: 'url(/assets/backgrounds/character-select.png)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      <div className="absolute inset-0 bg-black/60" />
+
+      <div className="relative max-w-2xl w-full mx-auto">
+        <ImagePanel size="large">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <h2
+              className="text-xl font-bold text-yellow-100"
+              style={{ textShadow: '2px 2px 0 #000' }}
+            >
+              Create Character
+            </h2>
+            <button
+              onClick={handleClose}
+              className="w-8 h-8 hover:brightness-125 transition-all"
+            >
+              <img
+                src={ICON_CLOSE}
+                alt="Close"
+                className="w-full h-full"
+                style={{ imageRendering: 'pixelated' }}
+              />
+            </button>
+          </div>
+
+          <PanelDivider />
+
+          {/* Instructions */}
+          <p
+            className="text-center text-gray-300 mb-4"
+            style={{ textShadow: '1px 1px 0 #000' }}
+          >
+            Choose your class. This decision is permanent.
           </p>
 
           {/* Class selection */}
-          <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-4 mb-6">
             {CLASSES.map((cls) => (
               <button
                 key={cls}
-                onClick={() => setSelectedClass(cls)}
+                onClick={() => handleClassSelect(cls)}
                 className={`
-                  w-full p-4 rounded-lg border-2 transition-all text-left
-                  ${selectedClass === cls
-                    ? CLASS_COLORS[cls]
-                    : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
-                  }
+                  relative p-2 transition-all hover:scale-105
+                  ${selectedClass === cls ? 'scale-105 brightness-125' : 'brightness-90 hover:brightness-100'}
                 `}
+                style={{
+                  backgroundImage: `url(${CLASS_CARDS[cls]})`,
+                  backgroundSize: '100% 100%',
+                  imageRendering: 'pixelated',
+                }}
               >
-                <div className="flex items-start gap-3">
-                  <div className={`w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center overflow-hidden border ${
-                    selectedClass === cls ? 'border-white' : 'border-zinc-700'
-                  }`}>
+                <div className="flex flex-col items-center py-2">
+                  <div className="relative w-16 h-16 mb-2">
+                    <img
+                      src={FRAME_PORTRAIT}
+                      alt=""
+                      className="absolute inset-0 w-full h-full"
+                      style={{ imageRendering: 'pixelated' }}
+                    />
                     <img
                       src={CLASS_IMAGES[cls]}
                       alt={cls}
-                      className="w-12 h-12 object-contain"
+                      className="absolute inset-1 w-14 h-14 object-contain"
                       style={{ imageRendering: 'pixelated' }}
                     />
                   </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-white">{cls}</h3>
-                    <p className="text-xs text-zinc-400 mt-1">{CLASS_DESCRIPTIONS[cls]}</p>
-                    <div className="flex gap-4 mt-2 text-xs">
-                      <span className="text-red-400">STR {CLASS_STATS[cls].strength}</span>
-                      <span className="text-green-400">AGI {CLASS_STATS[cls].agility}</span>
-                      <span className="text-blue-400">INT {CLASS_STATS[cls].intelligence}</span>
-                    </div>
+                  <h3
+                    className="font-bold text-yellow-100 text-lg"
+                    style={{ textShadow: '2px 2px 0 #000' }}
+                  >
+                    {cls}
+                  </h3>
+                  <p
+                    className="text-[10px] text-gray-300 text-center mt-1 px-2"
+                    style={{ textShadow: '1px 1px 0 #000' }}
+                  >
+                    {CLASS_DESCRIPTIONS[cls]}
+                  </p>
+                  <div className="flex gap-2 mt-2 text-[10px]">
+                    <span className="text-red-400">STR {CLASS_STATS[cls].strength}</span>
+                    <span className="text-green-400">AGI {CLASS_STATS[cls].agility}</span>
+                    <span className="text-blue-400">INT {CLASS_STATS[cls].intelligence}</span>
                   </div>
                 </div>
+                {selectedClass === cls && (
+                  <div className="absolute inset-0 border-4 border-yellow-400 pointer-events-none" />
+                )}
               </button>
             ))}
           </div>
 
+          <PanelDivider />
+
           {/* Stats preview */}
           {selectedClass && (
-            <div className="bg-zinc-800 rounded-lg p-4 space-y-2">
-              <h4 className="text-sm font-medium text-zinc-300">Starting Stats</h4>
+            <div
+              className="p-4 mb-4"
+              style={{
+                backgroundImage: 'url(/assets/ui/panels/panel-small.png)',
+                backgroundSize: '100% 100%',
+                imageRendering: 'pixelated',
+              }}
+            >
+              <h4
+                className="text-sm font-bold text-yellow-100 mb-2"
+                style={{ textShadow: '1px 1px 0 #000' }}
+              >
+                Starting Stats
+              </h4>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Health</span>
-                  <span className="text-zinc-200">100</span>
+                  <span className="text-gray-400">Health</span>
+                  <span className="text-white font-bold">100</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Mana</span>
-                  <span className="text-zinc-200">50</span>
+                  <span className="text-gray-400">Mana</span>
+                  <span className="text-white font-bold">50</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Level</span>
-                  <span className="text-zinc-200">1</span>
+                  <span className="text-gray-400">Level</span>
+                  <span className="text-white font-bold">1</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-zinc-500">Experience</span>
-                  <span className="text-zinc-200">0</span>
+                  <span className="text-gray-400">Experience</span>
+                  <span className="text-white font-bold">0</span>
                 </div>
               </div>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-900/50 border border-red-700 rounded-lg p-3 text-sm text-red-300">
-              {error}
+            <div
+              className="p-3 mb-4 text-center"
+              style={{
+                backgroundImage: 'url(/assets/ui/slots/slot-epic.png)',
+                backgroundSize: '100% 100%',
+                imageRendering: 'pixelated',
+              }}
+            >
+              <p className="text-red-400 text-sm" style={{ textShadow: '1px 1px 0 #000' }}>
+                {error}
+              </p>
             </div>
           )}
-        </div>
 
-        {/* Footer */}
-        <div className="flex gap-3 p-4 border-t border-zinc-800">
-          <button
-            onClick={onClose}
-            disabled={isCreating}
-            className="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-lg transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCreate}
-            disabled={!selectedClass || isCreating}
-            className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isCreating ? 'Creating...' : 'Create Character'}
-          </button>
-        </div>
+          {/* Footer buttons */}
+          <div className="flex gap-4 justify-center">
+            <ImageButton
+              variant="secondary"
+              size="md"
+              onClick={handleClose}
+              disabled={isCreating}
+            >
+              Cancel
+            </ImageButton>
+            <ImageButton
+              variant="primary"
+              size="md"
+              onClick={handleCreate}
+              disabled={!selectedClass || isCreating}
+            >
+              {isCreating ? 'Creating...' : 'Create'}
+            </ImageButton>
+          </div>
+        </ImagePanel>
       </div>
     </div>
   );

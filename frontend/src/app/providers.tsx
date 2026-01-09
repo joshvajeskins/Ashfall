@@ -18,7 +18,7 @@ const PrivyProviderWrapper = dynamic(
               appearance: {
                 theme: 'dark',
                 accentColor: '#ef4444',
-                logo: '/logo.png',
+                logo: '/ashfall-logo-text.png',
               },
               loginMethods: ['email'],
             }}

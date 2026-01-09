@@ -6,27 +6,28 @@ import { useEffect, useState } from 'react';
 import { useWalletStore } from '@/stores/walletStore';
 import { createMovementWallet, getMovementWallet } from '@/lib/privy-movement';
 import { aptosClient } from '@/lib/move/client';
-import { Button } from '@/components/ui/Button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Copy, LogOut, Wallet, Check } from 'lucide-react';
-import Avatar from 'boring-avatars';
+import { ImageButton } from '@/components/ui/ImageButton';
+import { soundManager } from '@/game/effects/SoundManager';
 
 export function ConnectButton() {
   const hasPrivyConfig = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
 
   if (!hasPrivyConfig) {
     return (
-      <Button variant="outline" disabled>
-        <Wallet className="size-4" />
+      <button
+        disabled
+        style={{
+          padding: '8px 16px',
+          opacity: 0.5,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          border: '2px solid #44403c',
+          color: '#9ca3af',
+          fontSize: 14,
+          cursor: 'not-allowed',
+        }}
+      >
         Wallet
-      </Button>
+      </button>
     );
   }
 
@@ -40,6 +41,7 @@ function PrivyConnectButton() {
   const [isCreatingWallet, setIsCreatingWallet] = useState(false);
   const [copied, setCopied] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   const movementWallet = getMovementWallet(user);
 
@@ -56,6 +58,7 @@ function PrivyConnectButton() {
     },
     onError: (error) => {
       console.error('Login failed:', error);
+      soundManager.play('error');
       setConnecting(false);
     },
   });
@@ -84,7 +87,6 @@ function PrivyConnectButton() {
     ensureWallet();
   }, [authenticated, user, movementWallet, createWallet, isCreatingWallet]);
 
-  // Fetch balance
   useEffect(() => {
     const fetchBalance = async () => {
       if (movementWallet?.address) {
@@ -108,6 +110,7 @@ function PrivyConnectButton() {
 
   const handleCopyAddress = async () => {
     if (movementWallet?.address) {
+      soundManager.play('buttonClick');
       await navigator.clipboard.writeText(movementWallet.address);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -115,40 +118,85 @@ function PrivyConnectButton() {
   };
 
   const handleDisconnect = () => {
+    soundManager.play('buttonClick');
+    setShowDropdown(false);
     disconnect();
     logout();
   };
 
   if (!ready) {
     return (
-      <Button variant="outline" disabled>
-        <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+      <button
+        disabled
+        style={{
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          border: '2px solid #44403c',
+          color: '#9ca3af',
+          fontSize: 14,
+        }}
+      >
+        <span
+          style={{
+            width: 16,
+            height: 16,
+            border: '2px solid #ca8a04',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
         Loading...
-      </Button>
+      </button>
     );
   }
 
   if (!authenticated) {
     return (
-      <Button
+      <ImageButton
+        variant="primary"
+        size="md"
         onClick={() => {
           setConnecting(true);
           login();
         }}
-        className="bg-red-600 hover:bg-red-700 text-white border-red-500"
+        style={{ width: 150, height: 65 }}
       >
-        <Wallet className="size-4" />
-        Connect Wallet
-      </Button>
+        Connect
+      </ImageButton>
     );
   }
 
   if (isCreatingWallet) {
     return (
-      <Button variant="outline" disabled>
-        <span className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-        Creating Wallet...
-      </Button>
+      <button
+        disabled
+        style={{
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          border: '2px solid #44403c',
+          color: '#fef3c7',
+          fontSize: 14,
+        }}
+      >
+        <span
+          style={{
+            width: 16,
+            height: 16,
+            border: '2px solid #ca8a04',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }}
+        />
+        Creating...
+      </button>
     );
   }
 
@@ -157,71 +205,100 @@ function PrivyConnectButton() {
     : 'No Wallet';
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="gap-2 pl-2 pr-3">
-          <Avatar
-            size={24}
-            name={movementWallet?.address || 'default'}
-            variant="beam"
-            colors={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']}
-          />
-          <div className="flex flex-col items-start">
-            <span className="font-mono text-sm">{displayAddress}</span>
-            <span className="text-xs text-muted-foreground">
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => {
+          soundManager.play('buttonClick');
+          setShowDropdown(!showDropdown);
+        }}
+        style={{
+          padding: '6px 12px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          border: '2px solid #44403c',
+          cursor: 'pointer',
+        }}
+      >
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #ef4444, #f97316, #eab308)',
+          }}
+        />
+        <div style={{ textAlign: 'left' }}>
+          <div style={{ fontSize: 11, color: '#fef3c7', fontFamily: 'monospace', textShadow: '1px 1px 0 #000' }}>
+            {displayAddress}
+          </div>
+          <div style={{ fontSize: 15, color: '#9ca3af', fontWeight: 'bold', textShadow: '1px 1px 0 #000' }}>
+            {balance !== null ? `${balance} MOVE` : '...'}
+          </div>
+        </div>
+      </button>
+
+      {showDropdown && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: 4,
+            width: 220,
+            backgroundColor: '#1a1a1a',
+            border: '2px solid #44403c',
+            zIndex: 100,
+          }}
+        >
+          <div style={{ padding: 12, borderBottom: '1px solid #333' }}>
+            <div style={{ fontSize: 12, color: '#fef3c7', marginBottom: 4, textShadow: '1px 1px 0 #000' }}>
+              Movement Wallet
+            </div>
+            <div style={{ fontSize: 10, color: '#9ca3af', fontFamily: 'monospace', wordBreak: 'break-all', textShadow: '1px 1px 0 #000' }}>
+              {movementWallet?.address || 'Not created'}
+            </div>
+          </div>
+          <div style={{ padding: 10, borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 14, color: '#9ca3af', textShadow: '1px 1px 0 #000' }}>Balance</span>
+            <span style={{ fontSize: 15, color: '#fef3c7', fontWeight: 'bold', textShadow: '1px 1px 0 #000' }}>
               {balance !== null ? `${balance} MOVE` : '...'}
             </span>
           </div>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
-        <DropdownMenuLabel className="font-normal">
-          <div className="flex items-center gap-3">
-            <Avatar
-              size={40}
-              name={movementWallet?.address || 'default'}
-              variant="beam"
-              colors={['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6']}
-            />
-            <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium">Movement Wallet</p>
-              <p className="text-xs text-muted-foreground font-mono truncate max-w-[180px]">
-                {movementWallet?.address || 'Not created'}
-              </p>
-              {user?.email?.address && (
-                <p className="text-xs text-muted-foreground">{user.email.address}</p>
-              )}
-            </div>
-          </div>
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <div className="px-2 py-2">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-muted-foreground">Balance</span>
-            <span className="text-sm font-medium">
-              {balance !== null ? `${balance} MOVE` : 'Loading...'}
-            </span>
-          </div>
+          <button
+            onClick={handleCopyAddress}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              textAlign: 'left',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#fef3c7',
+              fontSize: 12,
+              cursor: 'pointer',
+              borderBottom: '1px solid #333',
+            }}
+          >
+            {copied ? '✓ Copied!' : '📋 Copy Address'}
+          </button>
+          <button
+            onClick={handleDisconnect}
+            style={{
+              width: '100%',
+              padding: '8px 12px',
+              textAlign: 'left',
+              backgroundColor: 'transparent',
+              border: 'none',
+              color: '#f87171',
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            🚪 Disconnect
+          </button>
         </div>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={handleCopyAddress} className="cursor-pointer">
-          {copied ? (
-            <Check className="size-4 text-green-500" />
-          ) : (
-            <Copy className="size-4" />
-          )}
-          {copied ? 'Copied!' : 'Copy Address'}
-        </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={handleDisconnect}
-          variant="destructive"
-          className="cursor-pointer"
-        >
-          <LogOut className="size-4" />
-          Disconnect
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+      )}
+    </div>
   );
 }

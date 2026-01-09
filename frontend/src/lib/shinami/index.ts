@@ -1,9 +1,11 @@
 /**
- * Shinami Integration Module
+ * Shinami Integration Module (Server-side only)
  *
- * Exports two main services:
+ * Uses single SHINAMI_KEY env var for all services:
  * 1. Gas Station - For sponsoring user (Privy) wallet transactions
  * 2. Invisible Wallet - For server-controlled game actions
+ *
+ * IMPORTANT: Only import this in /api routes, not client components
  */
 
 // Gas Station exports - for user transactions
@@ -28,4 +30,5 @@ export {
 export {
   MOVEMENT_TESTNET_CONFIG,
   SERVER_WALLET_ID,
+  getShinamiKey,
 } from './config';

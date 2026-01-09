@@ -2,7 +2,7 @@ import * as Phaser from 'phaser';
 
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 600;
-export const TILE_SIZE = 32;
+export const TILE_SIZE = 50; // 800/16=50, 600/12=50 - perfect fit
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

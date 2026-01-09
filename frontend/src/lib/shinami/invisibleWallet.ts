@@ -25,7 +25,7 @@ import {
   createAptosClient,
 } from '@shinami/clients/aptos';
 import {
-  getShinamiWalletKey,
+  getShinamiKey,
   getServerWalletSecret,
   SERVER_WALLET_ID,
   MOVEMENT_TESTNET_CONFIG,
@@ -39,7 +39,7 @@ let shinamiAptosClient: Aptos | null = null;
 
 function initClients() {
   if (!keyClient) {
-    const key = getShinamiWalletKey();
+    const key = getShinamiKey();
     keyClient = new KeyClient(key);
     walletClient = new WalletClient(key);
     gasClient = new GasStationClient(key);

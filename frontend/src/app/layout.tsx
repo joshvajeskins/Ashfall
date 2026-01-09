@@ -1,17 +1,20 @@
 import type { Metadata } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Press_Start_2P, VT323 } from 'next/font/google';
 import { Providers } from './providers';
-import { Header } from '@/components/ui/Header';
 import './globals.css';
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
+// Pixel font for headings and game UI
+const pressStart = Press_Start_2P({
+  weight: '400',
   subsets: ['latin'],
+  variable: '--font-pixel',
 });
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+// Retro terminal font for body text (more readable)
+const vt323 = VT323({
+  weight: '400',
   subsets: ['latin'],
+  variable: '--font-retro',
 });
 
 export const metadata: Metadata = {
@@ -19,6 +22,10 @@ export const metadata: Metadata = {
   description:
     'A browser-based roguelike dungeon crawler with on-chain item ownership built on Movement.',
 };
+
+// Fixed game canvas dimensions - larger to fit UI elements
+const GAME_WIDTH = 1024;
+const GAME_HEIGHT = 900;
 
 export default function RootLayout({
   children,
@@ -28,12 +35,33 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-zinc-950 text-zinc-100 min-h-screen`}
+        className={`${pressStart.variable} ${vt323.variable}`}
+        style={{
+          margin: 0,
+          padding: 0,
+          width: '100vw',
+          height: '100vh',
+          overflow: 'hidden',
+          backgroundColor: '#0a0505',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'var(--font-retro), monospace',
+        }}
       >
-        <Providers>
-          <Header />
-          <main className="pt-16">{children}</main>
-        </Providers>
+        {/* Centered fixed-size game canvas */}
+        <div
+          style={{
+            width: GAME_WIDTH,
+            height: GAME_HEIGHT,
+            position: 'relative',
+            overflow: 'hidden',
+            boxShadow: '0 0 60px rgba(0,0,0,0.8), 0 0 120px rgba(139,69,19,0.3)',
+            border: '4px solid #2a1a0a',
+          }}
+        >
+          <Providers>{children}</Providers>
+        </div>
       </body>
     </html>
   );

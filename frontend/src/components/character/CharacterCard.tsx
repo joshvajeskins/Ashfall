@@ -2,128 +2,147 @@
 
 import type { Character } from '@/types';
 import { EquipmentSlot } from './EquipmentSlot';
+import { ImageBar } from '@/components/ui/ImageBar';
+import { ImagePanel, PanelDivider } from '@/components/ui/ImagePanel';
 
 interface CharacterCardProps {
   character: Character;
   onEquipmentClick?: (slot: 'weapon' | 'armor' | 'accessory') => void;
 }
 
-// Character class images
 const CLASS_IMAGES: Record<string, string> = {
   Warrior: '/assets/characters/warrior.png',
   Rogue: '/assets/characters/rogue.png',
   Mage: '/assets/characters/mage.png',
 };
 
-const CLASS_COLORS: Record<string, string> = {
-  Warrior: 'border-red-500',
-  Rogue: 'border-green-500',
-  Mage: 'border-blue-500',
-};
-
-function StatBar({ label, current, max, color }: {
-  label: string;
-  current: number;
-  max: number;
-  color: string;
-}) {
-  const percentage = Math.min(100, (current / max) * 100);
-  return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs">
-        <span className="text-zinc-400">{label}</span>
-        <span className="text-zinc-300">{current}/{max}</span>
-      </div>
-      <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full ${color} transition-all duration-300`}
-          style={{ width: `${percentage}%` }}
-        />
-      </div>
-    </div>
-  );
-}
+const FRAME_PORTRAIT = '/assets/ui/decorative/frame-portrait.png';
 
 function StatValue({ label, value, icon }: { label: string; value: number; icon: string }) {
   return (
-    <div className="flex items-center gap-2 bg-zinc-800/50 rounded px-2 py-1">
-      <span className="text-xs text-zinc-500">{icon}</span>
-      <div className="flex flex-col">
-        <span className="text-xs text-zinc-500">{label}</span>
-        <span className="text-sm text-zinc-200 font-medium">{value}</span>
+    <div
+      className="flex items-center justify-between py-2"
+      style={{
+        paddingLeft: 12,
+        paddingRight: 20,
+        backgroundImage: 'url(/assets/ui/slots/slot-common.png)',
+        backgroundSize: '100% 100%',
+        imageRendering: 'pixelated',
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-base text-yellow-300" style={{ textShadow: '1px 1px 0 #000' }}>
+          {icon}
+        </span>
+        <span className="text-sm text-gray-400" style={{ textShadow: '1px 1px 0 #000' }}>{label}</span>
       </div>
+      <span
+        className="text-lg text-white font-bold"
+        style={{ textShadow: '1px 1px 0 #000' }}
+      >
+        {value}
+      </span>
     </div>
   );
 }
 
 export function CharacterCard({ character, onEquipmentClick }: CharacterCardProps) {
   const expForNextLevel = 100 * Math.pow(2, character.level - 1);
-  const expProgress = (character.experience / expForNextLevel) * 100;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 space-y-4">
+    <ImagePanel size="large" width={500}>
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className={`w-14 h-14 rounded-lg bg-zinc-800 border-2 ${CLASS_COLORS[character.class]} flex items-center justify-center overflow-hidden`}>
+      <div className="flex items-center gap-4 mb-6">
+        <div className="relative w-24 h-24">
+          <img
+            src={FRAME_PORTRAIT}
+            alt=""
+            className="absolute inset-0 w-full h-full"
+            style={{ imageRendering: 'pixelated' }}
+          />
           <img
             src={CLASS_IMAGES[character.class]}
             alt={character.class}
-            className="w-12 h-12 object-contain"
+            className="absolute inset-2 w-20 h-20 object-contain"
             style={{ imageRendering: 'pixelated' }}
           />
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold text-white">{character.class}</h3>
+          <div className="flex items-center gap-3">
+            <h3
+              className="text-2xl font-bold text-yellow-100"
+              style={{ textShadow: '2px 2px 0 #000' }}
+            >
+              {character.class}
+            </h3>
             {!character.isAlive && (
-              <span className="px-2 py-0.5 text-xs bg-red-900 text-red-400 rounded">DEAD</span>
+              <span
+                className="px-3 py-1 text-sm text-red-400 font-bold"
+                style={{
+                  backgroundImage: 'url(/assets/ui/slots/slot-epic.png)',
+                  backgroundSize: '100% 100%',
+                  imageRendering: 'pixelated',
+                }}
+              >
+                DEAD
+              </span>
             )}
           </div>
-          <p className="text-sm text-zinc-400">Level {character.level}</p>
+          <p
+            className="text-lg text-gray-300"
+            style={{ textShadow: '1px 1px 0 #000' }}
+          >
+            Level {character.level}
+          </p>
         </div>
       </div>
 
       {/* HP and Mana bars */}
-      <div className="space-y-2">
-        <StatBar
-          label="HP"
+      <div className="space-y-3 mb-6">
+        <ImageBar
+          type="health"
           current={character.health}
           max={character.maxHealth}
-          color="bg-red-600"
+          size="lg"
         />
-        <StatBar
-          label="Mana"
-          current={character.mana}
-          max={character.maxMana}
-          color="bg-blue-600"
-        />
-      </div>
-
-      {/* Experience bar */}
-      <div className="space-y-1">
-        <div className="flex justify-between text-xs">
-          <span className="text-zinc-400">Experience</span>
-          <span className="text-zinc-300">{character.experience}/{expForNextLevel}</span>
+        <div style={{ paddingRight: 10 }}>
+          <ImageBar
+            type="mana"
+            current={character.mana}
+            max={character.maxMana}
+            size="lg"
+          />
         </div>
-        <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-yellow-500 transition-all duration-300"
-            style={{ width: `${expProgress}%` }}
+        <div style={{ paddingRight: 20 }}>
+          <ImageBar
+            type="xp"
+            current={character.experience}
+            max={expForNextLevel}
+            size="md"
           />
         </div>
       </div>
 
+      <PanelDivider />
+
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-3 mb-6 mt-4">
         <StatValue label="STR" value={character.stats.strength} icon="+" />
         <StatValue label="AGI" value={character.stats.agility} icon="~" />
         <StatValue label="INT" value={character.stats.intelligence} icon="*" />
       </div>
 
+      <PanelDivider />
+
       {/* Equipment slots */}
-      <div className="pt-2 border-t border-zinc-800">
-        <p className="text-xs text-zinc-500 mb-2">Equipment</p>
-        <div className="flex gap-2 justify-center">
+      <div className="pt-4">
+        <p
+          className="text-sm text-yellow-200 mb-3"
+          style={{ textShadow: '1px 1px 0 #000' }}
+        >
+          Equipment
+        </p>
+        <div className="flex gap-4 justify-center">
           <EquipmentSlot
             slotType="weapon"
             item={character.equipment.weapon}
@@ -141,6 +160,6 @@ export function CharacterCard({ character, onEquipmentClick }: CharacterCardProp
           />
         </div>
       </div>
-    </div>
+    </ImagePanel>
   );
 }
