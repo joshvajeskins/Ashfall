@@ -51,13 +51,13 @@ function PrivyConnectButton() {
         setIsCreatingWallet(true);
         await createMovementWallet(completedUser, createWallet);
       } catch (error) {
-        console.error('Error creating wallet after login:', error);
+        console.warn('Error creating wallet after login:', error);
       } finally {
         setIsCreatingWallet(false);
       }
     },
     onError: (error) => {
-      console.error('Login failed:', error);
+      console.warn('Login failed:', error);
       soundManager.play('error');
       setConnecting(false);
     },
@@ -78,7 +78,7 @@ function PrivyConnectButton() {
         try {
           await createMovementWallet(user, createWallet);
         } catch (error) {
-          console.error('Error auto-creating wallet:', error);
+          console.warn('Error auto-creating wallet:', error);
         } finally {
           setIsCreatingWallet(false);
         }

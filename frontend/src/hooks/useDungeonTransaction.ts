@@ -77,13 +77,13 @@ export function useDungeonTransaction() {
       const response = await fetch(`${API_BASE_URL}/api/character/sync?address=${movementWallet.address}`);
 
       if (!response.ok) {
-        console.error('[useDungeonTransaction] Failed to sync character');
+        console.warn('[useDungeonTransaction] Failed to sync character');
         return false;
       }
 
       const data = await response.json();
       if (!data.success || !data.character) {
-        console.error('[useDungeonTransaction] Invalid sync response:', data);
+        console.warn('[useDungeonTransaction] Invalid sync response:', data);
         return false;
       }
 
@@ -110,7 +110,7 @@ export function useDungeonTransaction() {
 
       return true;
     } catch (error) {
-      console.error('[useDungeonTransaction] Error syncing character:', error);
+      console.warn('[useDungeonTransaction] Error syncing character:', error);
       return false;
     }
   }, [movementWallet, updateCharacter]);
