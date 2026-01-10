@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServerWalletAddress, isServerAuthorized } from '@/lib/shinami/invisibleWallet';
+import { CONTRACT_ADDRESS } from '@/lib/contract';
 
 /**
  * GET /api/shinami/status
@@ -36,7 +37,7 @@ export async function GET() {
         address,
         // Note: This address needs to be added to authorized_servers on-chain
         registrationRequired: !authorized,
-        registrationCommand: `aptos move run --function-id ${process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '<CONTRACT>'}::dungeon::add_server --args address:${address}`,
+        registrationCommand: `aptos move run --function-id ${CONTRACT_ADDRESS}::dungeon::add_server --args address:${address}`,
       };
     } catch (error) {
       status.serverWallet = {
