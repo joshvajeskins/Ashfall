@@ -90,14 +90,14 @@ export function StashPanel({ onClose }: StashPanelProps) {
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-2">
-            {stash.map((item) => (
+            {stash.map((item, index) => (
               <ItemCard
                 key={item.id}
                 item={item}
                 isStashItem
                 onWithdraw={
                   canAccessStash
-                    ? () => openTransferModal(item, 'withdraw')
+                    ? () => openTransferModal(item, 'withdraw', index)
                     : undefined
                 }
                 disabled={!canAccessStash}

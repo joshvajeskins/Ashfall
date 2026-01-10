@@ -126,15 +126,15 @@ export function InventoryPanel({ onClose }: InventoryPanelProps) {
           </div>
         ) : (
           <div className="grid grid-cols-5 gap-2">
-            {filteredInventory.map((item) => (
+            {filteredInventory.map((item, index) => (
               <ItemCard
                 key={item.id}
                 item={item}
-                onEquip={() => equipItem(item)}
-                onUse={() => useConsumable(item)}
+                onEquip={() => equipItem(item, index)}
+                onUse={() => useConsumable(item, index)}
                 onDeposit={
                   !isInDungeon
-                    ? () => openTransferModal(item, 'deposit')
+                    ? () => openTransferModal(item, 'deposit', index)
                     : undefined
                 }
                 disabled={isInDungeon && item.type !== 'Consumable'}

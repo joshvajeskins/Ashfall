@@ -4,6 +4,7 @@ module ashfall::loot {
     use std::vector;
     use aptos_framework::event;
     use ashfall::items::{Self, Rarity, Weapon, Armor, Accessory, Consumable, ItemIdCounter};
+    use ashfall::hero;
 
     // =============================================
     // ashfall::loot
@@ -574,5 +575,313 @@ module ashfall::loot {
     #[view]
     public fun has_inventory(player: address): bool {
         exists<PlayerInventory>(player)
+    }
+
+    // =============================================
+    // EQUIP FROM INVENTORY - Player entry functions
+    // =============================================
+
+    /// Equip weapon from inventory by index
+    public entry fun equip_weapon_from_inventory(
+        player_signer: &signer,
+        weapon_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(weapon_index < vector::length(&inventory.weapons), E_INVALID_DROP_TYPE);
+
+        // Remove weapon from inventory
+        let weapon = vector::swap_remove(&mut inventory.weapons, weapon_index);
+
+        // Equip to character (returns old weapon if any)
+        let old_weapon = hero::equip_weapon_for_player(player_signer, weapon);
+
+        // If there was an old weapon, put it back in inventory
+        if (std::option::is_some(&old_weapon)) {
+            let old = std::option::destroy_some(old_weapon);
+            vector::push_back(&mut inventory.weapons, old);
+        } else {
+            std::option::destroy_none(old_weapon);
+        };
+    }
+
+    /// Equip armor from inventory by index
+    public entry fun equip_armor_from_inventory(
+        player_signer: &signer,
+        armor_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(armor_index < vector::length(&inventory.armors), E_INVALID_DROP_TYPE);
+
+        let armor = vector::swap_remove(&mut inventory.armors, armor_index);
+        let old_armor = hero::equip_armor_for_player(player_signer, armor);
+
+        if (std::option::is_some(&old_armor)) {
+            let old = std::option::destroy_some(old_armor);
+            vector::push_back(&mut inventory.armors, old);
+        } else {
+            std::option::destroy_none(old_armor);
+        };
+    }
+
+    /// Equip accessory from inventory by index
+    public entry fun equip_accessory_from_inventory(
+        player_signer: &signer,
+        accessory_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(accessory_index < vector::length(&inventory.accessories), E_INVALID_DROP_TYPE);
+
+        let accessory = vector::swap_remove(&mut inventory.accessories, accessory_index);
+        let old_accessory = hero::equip_accessory_for_player(player_signer, accessory);
+
+        if (std::option::is_some(&old_accessory)) {
+            let old = std::option::destroy_some(old_accessory);
+            vector::push_back(&mut inventory.accessories, old);
+        } else {
+            std::option::destroy_none(old_accessory);
+        };
+    }
+
+    // =============================================
+    // UNEQUIP TO INVENTORY - Player entry functions
+    // =============================================
+
+    /// Unequip weapon to inventory
+    public entry fun unequip_weapon_to_inventory(
+        player_signer: &signer
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        // Ensure inventory exists
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let weapon = hero::unequip_weapon_for_player(player_signer);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.weapons, weapon);
+    }
+
+    /// Unequip armor to inventory
+    public entry fun unequip_armor_to_inventory(
+        player_signer: &signer
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let armor = hero::unequip_armor_for_player(player_signer);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.armors, armor);
+    }
+
+    /// Unequip accessory to inventory
+    public entry fun unequip_accessory_to_inventory(
+        player_signer: &signer
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let accessory = hero::unequip_accessory_for_player(player_signer);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.accessories, accessory);
+    }
+
+    // =============================================
+    // USE CONSUMABLE FROM INVENTORY
+    // =============================================
+
+    /// Use consumable from inventory by index
+    public entry fun use_consumable_from_inventory(
+        player_signer: &signer,
+        consumable_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(consumable_index < vector::length(&inventory.consumables), E_INVALID_DROP_TYPE);
+
+        let consumable = vector::swap_remove(&mut inventory.consumables, consumable_index);
+        hero::use_consumable_for_player(player_signer, consumable);
+    }
+
+    // =============================================
+    // STASH INTERACTIONS - Deposit/Withdraw from Stash
+    // Note: Cannot access stash while in dungeon (enforced in frontend)
+    // =============================================
+
+    /// Deposit weapon from inventory to stash
+    public entry fun deposit_weapon_to_stash(
+        player_signer: &signer,
+        weapon_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(weapon_index < vector::length(&inventory.weapons), E_INVALID_DROP_TYPE);
+
+        let weapon = vector::swap_remove(&mut inventory.weapons, weapon_index);
+        ashfall::stash::deposit_weapon(player_signer, weapon);
+    }
+
+    /// Deposit armor from inventory to stash
+    public entry fun deposit_armor_to_stash(
+        player_signer: &signer,
+        armor_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(armor_index < vector::length(&inventory.armors), E_INVALID_DROP_TYPE);
+
+        let armor = vector::swap_remove(&mut inventory.armors, armor_index);
+        ashfall::stash::deposit_armor(player_signer, armor);
+    }
+
+    /// Deposit accessory from inventory to stash
+    public entry fun deposit_accessory_to_stash(
+        player_signer: &signer,
+        accessory_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(accessory_index < vector::length(&inventory.accessories), E_INVALID_DROP_TYPE);
+
+        let accessory = vector::swap_remove(&mut inventory.accessories, accessory_index);
+        ashfall::stash::deposit_accessory(player_signer, accessory);
+    }
+
+    /// Deposit consumable from inventory to stash
+    public entry fun deposit_consumable_to_stash(
+        player_signer: &signer,
+        consumable_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+        assert!(exists<PlayerInventory>(player), E_INVALID_DROP_TYPE);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        assert!(consumable_index < vector::length(&inventory.consumables), E_INVALID_DROP_TYPE);
+
+        let consumable = vector::swap_remove(&mut inventory.consumables, consumable_index);
+        ashfall::stash::deposit_consumable(player_signer, consumable);
+    }
+
+    /// Withdraw weapon from stash to inventory
+    public entry fun withdraw_weapon_from_stash(
+        player_signer: &signer,
+        stash_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        // Ensure inventory exists
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let weapon = ashfall::stash::withdraw_weapon(player_signer, stash_index);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.weapons, weapon);
+    }
+
+    /// Withdraw armor from stash to inventory
+    public entry fun withdraw_armor_from_stash(
+        player_signer: &signer,
+        stash_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let armor = ashfall::stash::withdraw_armor(player_signer, stash_index);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.armors, armor);
+    }
+
+    /// Withdraw accessory from stash to inventory
+    public entry fun withdraw_accessory_from_stash(
+        player_signer: &signer,
+        stash_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let accessory = ashfall::stash::withdraw_accessory(player_signer, stash_index);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.accessories, accessory);
+    }
+
+    /// Withdraw consumable from stash to inventory
+    public entry fun withdraw_consumable_from_stash(
+        player_signer: &signer,
+        stash_index: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let consumable = ashfall::stash::withdraw_consumable(player_signer, stash_index);
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.consumables, consumable);
     }
 }

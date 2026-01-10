@@ -465,6 +465,66 @@ module ashfall::hero {
     }
 
     // =============================================
+    // EQUIPMENT HELPERS FOR LOOT MODULE
+    // =============================================
+
+    /// Equip weapon for player - called by loot module
+    public fun equip_weapon_for_player(account: &signer, weapon: Weapon): Option<Weapon> acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        equip_weapon(character, weapon)
+    }
+
+    /// Equip armor for player - called by loot module
+    public fun equip_armor_for_player(account: &signer, armor: Armor): Option<Armor> acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        equip_armor(character, armor)
+    }
+
+    /// Equip accessory for player - called by loot module
+    public fun equip_accessory_for_player(account: &signer, accessory: Accessory): Option<Accessory> acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        equip_accessory(character, accessory)
+    }
+
+    /// Unequip weapon for player - called by loot module
+    public fun unequip_weapon_for_player(account: &signer): Weapon acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        unequip_weapon(character)
+    }
+
+    /// Unequip armor for player - called by loot module
+    public fun unequip_armor_for_player(account: &signer): Armor acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        unequip_armor(character)
+    }
+
+    /// Unequip accessory for player - called by loot module
+    public fun unequip_accessory_for_player(account: &signer): Accessory acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        unequip_accessory(character)
+    }
+
+    /// Use consumable for player - called by loot module
+    public fun use_consumable_for_player(account: &signer, consumable: Consumable) acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+        let character = borrow_global_mut<Character>(addr);
+        use_consumable(character, consumable);
+    }
+
+    // =============================================
     // PERMADEATH - Burns all equipment forever
     // =============================================
 
@@ -692,6 +752,23 @@ module ashfall::hero {
         } else {
             false
         }
+    }
+
+    /// Use mana from a player's character - callable by combat module
+    public fun use_mana_from_player(player: address, amount: u64): bool acquires Character {
+        let character = borrow_global_mut<Character>(player);
+        use_mana(character, amount)
+    }
+
+    /// Heal a player's character by percentage of max HP - callable by combat module
+    /// Returns (amount_healed, new_health)
+    public fun heal_player_percent(player: address, percent: u64): (u64, u64) acquires Character {
+        let character = borrow_global_mut<Character>(player);
+        let heal_amount = (character.max_health * percent) / 100;
+        let old_health = character.health;
+        character.health = min(character.health + heal_amount, character.max_health);
+        let actual_healed = character.health - old_health;
+        (actual_healed, character.health)
     }
 
     public fun is_dead(character: &Character): bool {

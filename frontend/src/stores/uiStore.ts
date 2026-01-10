@@ -17,6 +17,7 @@ type TransferAction = 'deposit' | 'withdraw';
 interface TransferState {
   item: Item | null;
   action: TransferAction;
+  itemIndex: number;
 }
 
 interface DeathState {
@@ -65,7 +66,7 @@ interface UIState {
   setLoading: (isLoading: boolean, message?: string) => void;
   openModal: (modal: ModalType) => void;
   closeModal: () => void;
-  openTransferModal: (item: Item, action: TransferAction) => void;
+  openTransferModal: (item: Item, action: TransferAction, itemIndex: number) => void;
   openDeathModal: (floor: number, itemsLost: Item[]) => void;
   setDeathChainConfirmed: () => void;
   openLootModal: (items: Item[]) => void;
@@ -108,7 +109,7 @@ export const useUIStore = create<UIState>((set) => ({
   isLoading: false,
   loadingMessage: '',
   activeModal: null,
-  transferState: { item: null, action: 'deposit' },
+  transferState: { item: null, action: 'deposit', itemIndex: 0 },
   deathState: initialDeathState,
   lootState: initialLootState,
   victoryState: initialVictoryState,
@@ -124,14 +125,14 @@ export const useUIStore = create<UIState>((set) => ({
 
   closeModal: () => set({
     activeModal: null,
-    transferState: { item: null, action: 'deposit' },
+    transferState: { item: null, action: 'deposit', itemIndex: 0 },
     deathState: initialDeathState,
     lootState: initialLootState,
     victoryState: initialVictoryState,
   }),
 
-  openTransferModal: (item, action) =>
-    set({ activeModal: 'transfer', transferState: { item, action } }),
+  openTransferModal: (item, action, itemIndex) =>
+    set({ activeModal: 'transfer', transferState: { item, action, itemIndex } }),
 
   openDeathModal: (floor, itemsLost) =>
     set({
