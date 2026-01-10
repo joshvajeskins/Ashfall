@@ -6,7 +6,7 @@ import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { useGameStore } from '@/stores/gameStore';
 import { useUIStore } from '@/stores/uiStore';
-import { useTransactionStore } from '@/stores/transactionStore';
+import { useTransactionStore, waitForTransaction } from '@/stores/transactionStore';
 import { MODULES } from '@/lib/contract';
 import type { Item } from '@/types';
 
@@ -30,9 +30,24 @@ export function useItemActions(): UseItemActionsResult {
   const { isInDungeon, removeFromInventory } = useGameStore();
   const { inventory, setInventory } = useGameStore();
   const { addNotification } = useUIStore();
-  const addTransaction = useTransactionStore((state) => state.addTransaction);
+  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
+    useTransactionStore();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const addTransaction = (action: string, txHash: string) => {
+    const id = addPendingTransaction(action, txHash);
+    waitForTransaction(txHash).then((success) => {
+      if (success) {
+        confirmTransaction(id);
+        setTimeout(() => removeTransaction(id), 4000);
+      } else {
+        failTransaction(id);
+        setTimeout(() => removeTransaction(id), 6000);
+      }
+    });
+    return id;
+  };
 
   const movementWallet = getMovementWallet(user);
 

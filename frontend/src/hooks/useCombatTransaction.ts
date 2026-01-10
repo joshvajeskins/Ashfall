@@ -5,7 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { MODULES } from '@/lib/contract';
-import { useTransactionStore } from '@/stores/transactionStore';
+import { useTransactionStore, waitForTransaction } from '@/stores/transactionStore';
 import {
   startCombat,
   executeEnemyAttack,
@@ -38,7 +38,22 @@ export function useCombatTransaction() {
   const { signRawHash } = useSignRawHash();
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const addTransaction = useTransactionStore((state) => state.addTransaction);
+  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
+    useTransactionStore();
+
+  const addTransaction = (action: string, txHash: string) => {
+    const id = addPendingTransaction(action, txHash);
+    waitForTransaction(txHash).then((success) => {
+      if (success) {
+        confirmTransaction(id);
+        setTimeout(() => removeTransaction(id), 4000);
+      } else {
+        failTransaction(id);
+        setTimeout(() => removeTransaction(id), 6000);
+      }
+    });
+    return id;
+  };
 
   const movementWallet = getMovementWallet(user);
 
