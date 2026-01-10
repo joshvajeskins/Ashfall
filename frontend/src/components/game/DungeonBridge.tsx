@@ -49,18 +49,19 @@ export function DungeonBridge() {
   );
 
   // Handle floor complete request
+  // Called when player exits a floor via the floor exit door
   const handleFloorComplete = useCallback(
-    async (data: { floor: number; enemiesKilled: number; xpEarned: number }) => {
+    async (data: { floor: number; enemiesKilled?: number; xpEarned?: number }) => {
       console.log('[DungeonBridge] Completing floor on-chain:', data);
 
-      const result = await triggerCompleteFloor(data.enemiesKilled, data.xpEarned);
+      // Use provided values or defaults (blockchain tracks actual state)
+      const enemiesKilled = data.enemiesKilled ?? 3; // Default enemies per floor
+      const xpEarned = data.xpEarned ?? (data.floor * 50); // Default XP based on floor
+
+      const result = await triggerCompleteFloor(enemiesKilled, xpEarned);
 
       if (result.success) {
-        gameEvents.emit(GAME_EVENTS.FLOOR_COMPLETE, {
-          action: 'complete_floor',
-          txHash: result.txHash,
-          floor: data.floor,
-        });
+        console.log('[DungeonBridge] Floor complete tx success:', result.txHash);
       } else {
         console.error('[DungeonBridge] Failed to complete floor:', result.error);
       }
@@ -126,8 +127,9 @@ export function DungeonBridge() {
       GAME_EVENTS.UI_ENTER_DUNGEON,
       handleEnterDungeon as (...args: unknown[]) => void
     );
+    // Listen to FLOOR_COMPLETE (triggered when player exits floor via door), not ROOM_CLEAR
     gameEvents.on(
-      GAME_EVENTS.ROOM_CLEAR,
+      GAME_EVENTS.FLOOR_COMPLETE,
       handleFloorComplete as (...args: unknown[]) => void
     );
     gameEvents.on(
@@ -149,7 +151,7 @@ export function DungeonBridge() {
         handleEnterDungeon as (...args: unknown[]) => void
       );
       gameEvents.off(
-        GAME_EVENTS.ROOM_CLEAR,
+        GAME_EVENTS.FLOOR_COMPLETE,
         handleFloorComplete as (...args: unknown[]) => void
       );
       gameEvents.off(
