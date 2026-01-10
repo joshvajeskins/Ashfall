@@ -21,9 +21,9 @@ const ASSETS = {
   },
   animations: {
     players: ['warrior', 'rogue', 'mage'],
-    playerAnims: ['idle', 'move', 'attack', 'critical', 'hit', 'death'],
+    playerAnims: ['move', 'attack', 'critical', 'hit', 'death'],
     enemies: ['boss', 'ghoul', 'goblin', 'lich', 'skeleton', 'vampire', 'zombie'],
-    enemyAnims: ['idle', 'attack', 'critical', 'hit', 'death'],
+    enemyAnims: ['attack', 'critical', 'hit', 'death'],
     bossExtraAnims: ['taunt'], // Boss-only animations
   },
 };
@@ -201,7 +201,7 @@ export class BootScene extends Phaser.Scene {
   private createAnimations(): void {
     const frameRate = 8;
 
-    // Create player animations
+    // Create player animations (no idle - use static sprite instead)
     ASSETS.animations.players.forEach(player => {
       ASSETS.animations.playerAnims.forEach(anim => {
         const key = `${player}-${anim}`;
@@ -210,13 +210,13 @@ export class BootScene extends Phaser.Scene {
             key,
             frames: this.anims.generateFrameNumbers(key, { start: 0, end: 5 }),
             frameRate,
-            repeat: anim === 'idle' || anim === 'move' ? -1 : 0,
+            repeat: anim === 'move' ? -1 : 0,
           });
         }
       });
     });
 
-    // Create enemy animations
+    // Create enemy animations (no idle - use static sprite instead)
     ASSETS.animations.enemies.forEach(enemy => {
       ASSETS.animations.enemyAnims.forEach(anim => {
         const key = `${enemy}-${anim}`;
@@ -225,7 +225,7 @@ export class BootScene extends Phaser.Scene {
             key,
             frames: this.anims.generateFrameNumbers(key, { start: 0, end: 5 }),
             frameRate,
-            repeat: anim === 'idle' ? -1 : 0,
+            repeat: 0,
           });
         }
       });
