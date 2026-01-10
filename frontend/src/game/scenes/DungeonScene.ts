@@ -372,11 +372,22 @@ export class DungeonScene extends Phaser.Scene {
       this.player.setFlipX(dx < 0);
     }
 
-    // Keep static sprite during movement - no animation scale changes
+    // Play move animation if available, force size to stay consistent
+    const playerClass = this.character.class.toLowerCase();
+    const moveAnimKey = `${playerClass}-move`;
+    if (this.anims.exists(moveAnimKey)) {
+      this.player.play(moveAnimKey);
+      this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
+    }
+
     this.tweens.add({
       targets: this.player, x: newX, y: newY, duration: 150, ease: 'Linear',
       onComplete: () => {
         this.isMoving = false;
+        // Return to static sprite, force size to stay consistent
+        const playerTexture = `player-${playerClass}`;
+        this.player.setTexture(playerTexture);
+        this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
         this.checkItemPickup();
       },
     });
