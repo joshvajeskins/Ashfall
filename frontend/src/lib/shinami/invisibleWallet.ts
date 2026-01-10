@@ -30,6 +30,7 @@ import {
   SERVER_WALLET_ID,
   MOVEMENT_TESTNET_CONFIG,
 } from './config';
+import { MODULES } from '@/lib/contract';
 
 // Lazy-initialized clients (server-side only)
 let keyClient: KeyClient | null = null;

@@ -6,12 +6,10 @@ import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { useGameStore } from '@/stores/gameStore';
 import { useUIStore } from '@/stores/uiStore';
+import { MODULES } from '@/lib/contract';
 import type { Item } from '@/types';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
 
 interface UseItemActionsResult {
   // Mutations
@@ -105,13 +103,13 @@ export function useItemActions(): UseItemActionsResult {
         let functionName: string;
         switch (item.type) {
           case 'Weapon':
-            functionName = `${CONTRACT_ADDRESS}::loot::equip_weapon_from_inventory`;
+            functionName = `${MODULES.loot}::equip_weapon_from_inventory`;
             break;
           case 'Armor':
-            functionName = `${CONTRACT_ADDRESS}::loot::equip_armor_from_inventory`;
+            functionName = `${MODULES.loot}::equip_armor_from_inventory`;
             break;
           case 'Accessory':
-            functionName = `${CONTRACT_ADDRESS}::loot::equip_accessory_from_inventory`;
+            functionName = `${MODULES.loot}::equip_accessory_from_inventory`;
             break;
           default:
             throw new Error('Invalid item type for equipping');
@@ -159,13 +157,13 @@ export function useItemActions(): UseItemActionsResult {
         let functionName: string;
         switch (slot) {
           case 'weapon':
-            functionName = `${CONTRACT_ADDRESS}::loot::unequip_weapon_to_inventory`;
+            functionName = `${MODULES.loot}::unequip_weapon_to_inventory`;
             break;
           case 'armor':
-            functionName = `${CONTRACT_ADDRESS}::loot::unequip_armor_to_inventory`;
+            functionName = `${MODULES.loot}::unequip_armor_to_inventory`;
             break;
           case 'accessory':
-            functionName = `${CONTRACT_ADDRESS}::loot::unequip_accessory_to_inventory`;
+            functionName = `${MODULES.loot}::unequip_accessory_to_inventory`;
             break;
         }
 
@@ -207,7 +205,7 @@ export function useItemActions(): UseItemActionsResult {
 
       try {
         await submitSponsoredTransaction(
-          `${CONTRACT_ADDRESS}::loot::use_consumable_from_inventory`,
+          `${MODULES.loot}::use_consumable_from_inventory`,
           [inventoryIndex]
         );
 
@@ -248,16 +246,16 @@ export function useItemActions(): UseItemActionsResult {
         let functionName: string;
         switch (item.type) {
           case 'Weapon':
-            functionName = `${CONTRACT_ADDRESS}::loot::deposit_weapon_to_stash`;
+            functionName = `${MODULES.loot}::deposit_weapon_to_stash`;
             break;
           case 'Armor':
-            functionName = `${CONTRACT_ADDRESS}::loot::deposit_armor_to_stash`;
+            functionName = `${MODULES.loot}::deposit_armor_to_stash`;
             break;
           case 'Accessory':
-            functionName = `${CONTRACT_ADDRESS}::loot::deposit_accessory_to_stash`;
+            functionName = `${MODULES.loot}::deposit_accessory_to_stash`;
             break;
           case 'Consumable':
-            functionName = `${CONTRACT_ADDRESS}::loot::deposit_consumable_to_stash`;
+            functionName = `${MODULES.loot}::deposit_consumable_to_stash`;
             break;
           default:
             throw new Error('Invalid item type');
@@ -302,16 +300,16 @@ export function useItemActions(): UseItemActionsResult {
         let functionName: string;
         switch (item.type) {
           case 'Weapon':
-            functionName = `${CONTRACT_ADDRESS}::loot::withdraw_weapon_from_stash`;
+            functionName = `${MODULES.loot}::withdraw_weapon_from_stash`;
             break;
           case 'Armor':
-            functionName = `${CONTRACT_ADDRESS}::loot::withdraw_armor_from_stash`;
+            functionName = `${MODULES.loot}::withdraw_armor_from_stash`;
             break;
           case 'Accessory':
-            functionName = `${CONTRACT_ADDRESS}::loot::withdraw_accessory_from_stash`;
+            functionName = `${MODULES.loot}::withdraw_accessory_from_stash`;
             break;
           case 'Consumable':
-            functionName = `${CONTRACT_ADDRESS}::loot::withdraw_consumable_from_stash`;
+            functionName = `${MODULES.loot}::withdraw_consumable_from_stash`;
             break;
           default:
             throw new Error('Invalid item type');

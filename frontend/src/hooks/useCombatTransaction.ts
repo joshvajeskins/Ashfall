@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
+import { MODULES } from '@/lib/contract';
 import {
   startCombat,
   executeEnemyAttack,
@@ -11,8 +12,6 @@ import {
 } from '@/lib/move/combatService';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
 
 export interface CombatAction {
   type: 'player_attack' | 'flee';
@@ -91,7 +90,7 @@ export function useCombatTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::combat::player_attack`,
+          function: `${MODULES.combat}::player_attack`,
           typeArguments: [],
           functionArguments: [seed],
         }),
@@ -158,7 +157,7 @@ export function useCombatTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::combat::flee_combat`,
+          function: `${MODULES.combat}::flee_combat`,
           typeArguments: [],
           functionArguments: [seed],
         }),
@@ -222,7 +221,7 @@ export function useCombatTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::combat::player_defend`,
+          function: `${MODULES.combat}::player_defend`,
           typeArguments: [],
           functionArguments: [],
         }),
@@ -288,7 +287,7 @@ export function useCombatTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::combat::player_heavy_attack`,
+          function: `${MODULES.combat}::player_heavy_attack`,
           typeArguments: [],
           functionArguments: [seed],
         }),
@@ -352,7 +351,7 @@ export function useCombatTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::combat::player_heal`,
+          function: `${MODULES.combat}::player_heal`,
           typeArguments: [],
           functionArguments: [],
         }),
@@ -452,19 +451,19 @@ export function useCombatTransaction() {
 
       switch (itemType) {
         case 0: // Weapon
-          functionName = `${CONTRACT_ADDRESS}::loot::pickup_weapon`;
+          functionName = `${MODULES.loot}::pickup_weapon`;
           functionArgs = [floor, enemyTier, seed];
           break;
         case 1: // Armor
-          functionName = `${CONTRACT_ADDRESS}::loot::pickup_armor`;
+          functionName = `${MODULES.loot}::pickup_armor`;
           functionArgs = [floor, enemyTier, seed];
           break;
         case 2: // Accessory
-          functionName = `${CONTRACT_ADDRESS}::loot::pickup_accessory`;
+          functionName = `${MODULES.loot}::pickup_accessory`;
           functionArgs = [floor, enemyTier, seed];
           break;
         case 3: // Consumable
-          functionName = `${CONTRACT_ADDRESS}::loot::pickup_consumable`;
+          functionName = `${MODULES.loot}::pickup_consumable`;
           functionArgs = [floor, consumableType, power];
           break;
         default:
