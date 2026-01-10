@@ -4,6 +4,9 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '';
 
+// Helper to ensure /api prefix for Next.js API routes
+const getApiUrl = (path: string) => `${API_BASE}/api${path}`;
+
 export interface ExitDungeonResponse {
   success: boolean;
   txHash?: string;
@@ -31,7 +34,7 @@ export async function exitDungeonSuccess(
   playerAddress: string
 ): Promise<ExitDungeonResponse> {
   try {
-    const response = await fetch(`${API_BASE}/dungeon/exit-success`, {
+    const response = await fetch(getApiUrl('/dungeon/exit-success'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerAddress }),
@@ -60,7 +63,7 @@ export async function completeBossFloor(
   xpEarned: number
 ): Promise<CompleteBossResponse> {
   try {
-    const response = await fetch(`${API_BASE}/dungeon/complete-boss`, {
+    const response = await fetch(getApiUrl('/dungeon/complete-boss'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerAddress, xpEarned }),
@@ -90,7 +93,7 @@ export async function completeFloor(
   xpEarned: number
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
-    const response = await fetch(`${API_BASE}/dungeon/complete-floor`, {
+    const response = await fetch(getApiUrl('/dungeon/complete-floor'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerAddress, enemiesKilled, xpEarned }),
@@ -118,7 +121,7 @@ export async function reportPlayerDeath(
   playerAddress: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
-    const response = await fetch(`${API_BASE}/dungeon/player-died`, {
+    const response = await fetch(getApiUrl('/dungeon/player-died'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerAddress }),

@@ -8,9 +8,9 @@
  * 4. Repeat until combat ends
  */
 
+import { MODULES } from '@/lib/contract';
+
 const API_BASE = '';
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
 
 export interface CombatStartResponse {
   success: boolean;
@@ -156,7 +156,7 @@ export async function buildPlayerAttackTransaction(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: playerAddress,
-        function: `${CONTRACT_ADDRESS}::combat::player_attack`,
+        function: `${MODULES.combat}::player_attack`,
         typeArguments: [],
         functionArguments: [seed],
       }),
@@ -201,7 +201,7 @@ export async function buildFleeTransaction(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: playerAddress,
-        function: `${CONTRACT_ADDRESS}::combat::flee_combat`,
+        function: `${MODULES.combat}::flee_combat`,
         typeArguments: [],
         functionArguments: [seed],
       }),
@@ -270,7 +270,7 @@ export async function buildPlayerDefendTransaction(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: playerAddress,
-        function: `${CONTRACT_ADDRESS}::combat::player_defend`,
+        function: `${MODULES.combat}::player_defend`,
         typeArguments: [],
         functionArguments: [],
       }),
@@ -315,7 +315,7 @@ export async function buildPlayerHeavyAttackTransaction(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: playerAddress,
-        function: `${CONTRACT_ADDRESS}::combat::player_heavy_attack`,
+        function: `${MODULES.combat}::player_heavy_attack`,
         typeArguments: [],
         functionArguments: [seed],
       }),
@@ -357,7 +357,7 @@ export async function buildPlayerHealTransaction(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         sender: playerAddress,
-        function: `${CONTRACT_ADDRESS}::combat::player_heal`,
+        function: `${MODULES.combat}::player_heal`,
         typeArguments: [],
         functionArguments: [],
       }),

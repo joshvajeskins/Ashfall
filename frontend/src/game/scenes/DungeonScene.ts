@@ -175,18 +175,17 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private scaleAnimationToTile(): void {
-    // Different classes have different animation sprite sizes
+    // Different classes have different animation sprite sizes and positioning
     const playerClass = this.character.class.toLowerCase();
-    const classMultipliers: Record<string, number> = {
-      warrior: 1.4,
-      mage: 1.0,
-      rogue: 1.0,
+    const classConfig: Record<string, { scale: number; originY: number }> = {
+      warrior: { scale: 1.4, originY: 0.7 },  // Larger sprite, move up
+      mage: { scale: 1.0, originY: 0.5 },     // Normal size, centered (feet on floor)
+      rogue: { scale: 1.0, originY: 0.5 },    // Normal size, centered (feet on floor)
     };
-    const multiplier = classMultipliers[playerClass] ?? 1.0;
-    const animSize = TILE_SIZE * multiplier;
+    const config = classConfig[playerClass] ?? { scale: 1.0, originY: 0.5 };
+    const animSize = TILE_SIZE * config.scale;
     this.player.setDisplaySize(animSize, animSize);
-    // Offset Y up to keep character in box (feet at bottom of sprite)
-    this.player.setOrigin(0.5, 0.7);
+    this.player.setOrigin(0.5, config.originY);
   }
 
   private resetPlayerToStatic(): void {

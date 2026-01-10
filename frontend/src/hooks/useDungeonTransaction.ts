@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
+import { MODULES } from '@/lib/contract';
 import {
   exitDungeonSuccess,
   completeBossFloor,
@@ -12,9 +13,6 @@ import {
 } from '@/lib/move/dungeonService';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
-const CONTRACT_ADDRESS =
-  process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-  '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
 
 export interface DungeonResult {
   success: boolean;
@@ -55,7 +53,7 @@ export function useDungeonTransaction() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             sender: movementWallet.address,
-            function: `${CONTRACT_ADDRESS}::dungeon::enter_dungeon`,
+            function: `${MODULES.dungeon}::enter_dungeon`,
             typeArguments: [],
             functionArguments: [dungeonId],
           }),
@@ -220,7 +218,7 @@ export function useDungeonTransaction() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sender: movementWallet.address,
-          function: `${CONTRACT_ADDRESS}::stash::init_stash`,
+          function: `${MODULES.stash}::init_stash`,
           typeArguments: [],
           functionArguments: [],
         }),
