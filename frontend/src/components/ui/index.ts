@@ -7,3 +7,4 @@ export { LoadingSpinner } from './LoadingSpinner';
 export { TransactionPending } from './TransactionPending';
 export { ChainSyncIndicator } from './ChainSyncIndicator';
 export { Toast, ToastContainer } from './Toast';
+export { GameGuide } from './GameGuide';

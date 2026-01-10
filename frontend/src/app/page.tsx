@@ -9,6 +9,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { ImageButton } from '@/components/ui/ImageButton';
 import { ImagePanel } from '@/components/ui/ImagePanel';
 import { Header } from '@/components/ui/Header';
+import { GameGuide } from '@/components/ui/GameGuide';
 import { soundManager } from '@/game/effects/SoundManager';
 
 function AuthenticatedHome() {
@@ -16,6 +17,7 @@ function AuthenticatedHome() {
   const { openModal } = useUIStore();
   const { isInDungeon, exitDungeon, enterDungeon } = useGameStore();
   const [isGameActive, setIsGameActive] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   useEffect(() => {
     // Keep playing mainMenu music - battle music is triggered during actual combat
@@ -147,16 +149,28 @@ function AuthenticatedHome() {
                 >
                   Connect your wallet to begin your adventure.
                 </p>
-                <ImageButton
-                  variant="primary"
-                  size="sm"
-                  onClick={() => {
-                    soundManager.play('buttonClick');
-                    login();
-                  }}
-                >
-                  Connect Wallet
-                </ImageButton>
+                <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                  <ImageButton
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      soundManager.play('buttonClick');
+                      login();
+                    }}
+                  >
+                    Connect Wallet
+                  </ImageButton>
+                  <ImageButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      soundManager.play('menuOpen');
+                      setIsGuideOpen(true);
+                    }}
+                  >
+                    How to Play
+                  </ImageButton>
+                </div>
               </div>
 
               {/* Divider */}
@@ -190,17 +204,29 @@ function AuthenticatedHome() {
             </div>
           </ImagePanel>
         ) : (
-          <CharacterSelect
-            onSelect={() => {
-              soundManager.play('doorOpen');
-              enterDungeon(1);
-              setIsGameActive(true);
-            }}
-            onEquipmentClick={(slot) => {
-              soundManager.play('menuOpen');
-              openModal('inventory');
-            }}
-          />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <CharacterSelect
+              onSelect={() => {
+                soundManager.play('doorOpen');
+                enterDungeon(1);
+                setIsGameActive(true);
+              }}
+              onEquipmentClick={(slot) => {
+                soundManager.play('menuOpen');
+                openModal('inventory');
+              }}
+            />
+            <ImageButton
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                soundManager.play('menuOpen');
+                setIsGuideOpen(true);
+              }}
+            >
+              How to Play
+            </ImageButton>
+          </div>
         )}
       </div>
 
@@ -219,11 +245,16 @@ function AuthenticatedHome() {
       >
         Built on Movement Network
       </div>
+
+      {/* Game Guide Modal */}
+      <GameGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }
 
 function UnconfiguredHome() {
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+
   useEffect(() => {
     soundManager.playMusic('mainMenu');
   }, []);
@@ -353,6 +384,20 @@ function UnconfiguredHome() {
                 </div>
               ))}
             </div>
+
+            {/* How to Play button */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+              <ImageButton
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  soundManager.play('menuOpen');
+                  setIsGuideOpen(true);
+                }}
+              >
+                How to Play
+              </ImageButton>
+            </div>
           </div>
         </ImagePanel>
       </div>
@@ -368,6 +413,9 @@ function UnconfiguredHome() {
       >
         Built on Movement Network
       </div>
+
+      {/* Game Guide Modal */}
+      <GameGuide isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
     </div>
   );
 }
