@@ -12,14 +12,19 @@ const ENEMY_SCALE = 40 / 900; // Enemy: 900px -> 40px
 const ITEM_SCALE = 30 / 900; // Items: 900px -> 30px (smaller pickup items)
 const BOSS_SCALE = 90 / 900; // Boss: 900px -> 90px (almost 2 tiles)
 
+// Animation sprite scaling - sprites are 64x64, need to scale to fit tile
+const ANIM_PLAYER_SCALE = 44 / 64; // Animated player: 64px -> 44px
+const ANIM_ENEMY_SCALE = 40 / 64; // Animated enemy: 64px -> 40px
+
 interface DungeonEnemy {
-  sprite: Phaser.GameObjects.Image;
+  sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
   data: Enemy;
+  hasAnimations: boolean;
 }
 
 export class DungeonScene extends Phaser.Scene {
   private character!: Character;
-  private player!: Phaser.GameObjects.Image;
+  private player!: Phaser.GameObjects.Sprite;
   private enemies: DungeonEnemy[] = [];
   private items: Phaser.GameObjects.Image[] = [];
   private doorZones: Phaser.GameObjects.Zone[] = [];
@@ -154,11 +159,22 @@ export class DungeonScene extends Phaser.Scene {
     const { width, height } = this.currentRoom;
     const startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
-    // Use character class-specific sprite
-    const playerTexture = `player-${this.character.class.toLowerCase()}`;
-    this.player = this.add.image(startX, startY, playerTexture)
-      .setScale(PLAYER_SCALE)
-      .setDepth(10);
+    const playerClass = this.character.class.toLowerCase();
+    const idleAnimKey = `${playerClass}-idle`;
+
+    // Use animated sprite if available
+    if (this.textures.exists(idleAnimKey)) {
+      this.player = this.add.sprite(startX, startY, idleAnimKey)
+        .setScale(ANIM_PLAYER_SCALE)
+        .setDepth(10);
+      this.player.play(idleAnimKey);
+    } else {
+      // Fallback to static sprite
+      const playerTexture = `player-${playerClass}`;
+      this.player = this.add.sprite(startX, startY, playerTexture)
+        .setScale(PLAYER_SCALE)
+        .setDepth(10);
+    }
   }
 
   private spawnEnemies(): void {
@@ -176,9 +192,20 @@ export class DungeonScene extends Phaser.Scene {
       const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
       const enemyType = enemyTypes[i % enemyTypes.length];
-      const key = `enemy-${enemyType}`;
-      const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
-      this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType } });
+      const idleAnimKey = `${enemyType}-idle`;
+
+      // Check if enemy has animations (vampire, zombie)
+      const hasAnimations = this.textures.exists(idleAnimKey);
+
+      if (hasAnimations) {
+        const sprite = this.add.sprite(x, y, idleAnimKey).setScale(ANIM_ENEMY_SCALE).setDepth(9);
+        sprite.play(idleAnimKey);
+        this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations: true });
+      } else {
+        const key = `enemy-${enemyType}`;
+        const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
+        this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations: false });
+      }
     });
   }
 
@@ -211,7 +238,7 @@ export class DungeonScene extends Phaser.Scene {
       isBoss: true,
     };
 
-    this.enemies.push({ sprite, data: bossEnemy });
+    this.enemies.push({ sprite, data: bossEnemy, hasAnimations: false });
 
     gameEvents.emit(GAME_EVENTS.BOSS_SPAWNED, {
       name: BOSS_CONFIG.name,
@@ -354,9 +381,30 @@ export class DungeonScene extends Phaser.Scene {
     if (enemy) { this.startCombat(enemy); return; }
 
     this.isMoving = true;
+
+    // Flip sprite based on direction
+    if (dx !== 0) {
+      this.player.setFlipX(dx < 0);
+    }
+
+    // Play move animation if available
+    const playerClass = this.character.class.toLowerCase();
+    const moveAnimKey = `${playerClass}-move`;
+    if (this.anims.exists(moveAnimKey)) {
+      this.player.play(moveAnimKey);
+    }
+
     this.tweens.add({
       targets: this.player, x: newX, y: newY, duration: 150, ease: 'Linear',
-      onComplete: () => { this.isMoving = false; this.checkItemPickup(); },
+      onComplete: () => {
+        this.isMoving = false;
+        // Return to idle animation
+        const idleAnimKey = `${playerClass}-idle`;
+        if (this.anims.exists(idleAnimKey)) {
+          this.player.play(idleAnimKey);
+        }
+        this.checkItemPickup();
+      },
     });
   }
 
@@ -427,6 +475,26 @@ export class DungeonScene extends Phaser.Scene {
       const item = this.items[i];
       if (Phaser.Math.Distance.Between(this.player.x, this.player.y, item.x, item.y) < TILE_SIZE / 2) {
         const itemData = item.getData('itemData') as Item;
+
+        // Map item type to on-chain type
+        const itemTypeMap: Record<string, number> = {
+          'Weapon': 0,
+          'Armor': 1,
+          'Accessory': 2,
+          'Consumable': 3
+        };
+        const itemType = itemTypeMap[itemData.type] ?? 0;
+
+        // Emit pickup request to trigger on-chain transaction
+        gameEvents.emit(GAME_EVENTS.ITEM_PICKUP_REQUEST, {
+          itemType,
+          floor: this.currentFloor,
+          enemyTier: 1,
+          consumableType: itemData.type === 'Consumable' ? 0 : undefined,
+          power: itemData.type === 'Consumable' ? 50 : undefined
+        });
+
+        // Visual/audio feedback immediately (transaction in background)
         soundManager.play('itemPickup');
         this.particles.itemPickup({ x: item.x, y: item.y });
         this.rarityEffects.removeEffect(item);

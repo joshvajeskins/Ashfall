@@ -1,0 +1,202 @@
+'use client';
+
+import { useEffect, useCallback } from 'react';
+import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
+import { useCombatTransaction } from '@/hooks/useCombatTransaction';
+
+/**
+ * CombatBridge - Bridges Phaser game events to React/blockchain transactions
+ *
+ * Listens to events from Phaser CombatScene:
+ * - COMBAT_START_REQUEST: Start combat on-chain
+ * - PLAYER_ATTACK_REQUEST: Player attacks (user wallet)
+ * - PLAYER_FLEE_REQUEST: Player flees (user wallet)
+ * - ENEMY_ATTACK_REQUEST: Enemy attacks (server wallet)
+ *
+ * Emits results back:
+ * - COMBAT_TX_SUCCESS: Transaction succeeded
+ * - COMBAT_TX_FAILED: Transaction failed
+ */
+export function CombatBridge() {
+  const {
+    initiateCombat,
+    playerAttack,
+    playerFlee,
+    triggerEnemyAttack,
+    pickupItem,
+    isPending,
+  } = useCombatTransaction();
+
+  // Handle combat start request
+  const handleCombatStartRequest = useCallback(
+    async (data: { enemyType: number; floor: number }) => {
+      console.log('[CombatBridge] Starting combat on-chain:', data);
+
+      const result = await initiateCombat(data.enemyType, data.floor);
+
+      if (result.success) {
+        gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+          action: 'start_combat',
+          txHash: result.txHash,
+        });
+      } else {
+        gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+          action: 'start_combat',
+          error: result.error,
+        });
+      }
+    },
+    [initiateCombat]
+  );
+
+  // Handle player attack request
+  const handlePlayerAttackRequest = useCallback(async () => {
+    console.log('[CombatBridge] Player attacking on-chain');
+
+    const result = await playerAttack();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'player_attack',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'player_attack',
+        error: result.error,
+      });
+    }
+  }, [playerAttack]);
+
+  // Handle player flee request
+  const handlePlayerFleeRequest = useCallback(async () => {
+    console.log('[CombatBridge] Player fleeing on-chain');
+
+    const result = await playerFlee();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'flee',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'flee',
+        error: result.error,
+      });
+    }
+  }, [playerFlee]);
+
+  // Handle enemy attack request
+  const handleEnemyAttackRequest = useCallback(async () => {
+    console.log('[CombatBridge] Enemy attacking on-chain');
+
+    const result = await triggerEnemyAttack();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'enemy_attack',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'enemy_attack',
+        error: result.error,
+      });
+    }
+  }, [triggerEnemyAttack]);
+
+  // Handle item pickup request
+  const handleItemPickupRequest = useCallback(
+    async (data: {
+      itemType: number; // 0=weapon, 1=armor, 2=accessory, 3=consumable
+      floor: number;
+      enemyTier?: number;
+      consumableType?: number;
+      power?: number;
+    }) => {
+      console.log('[CombatBridge] Picking up item on-chain:', data);
+
+      const result = await pickupItem(
+        data.itemType,
+        data.floor,
+        data.enemyTier || 1,
+        data.consumableType || 0,
+        data.power || 50
+      );
+
+      if (result.success) {
+        gameEvents.emit(GAME_EVENTS.ITEM_PICKUP_TX_SUCCESS, {
+          itemType: data.itemType,
+          txHash: result.txHash,
+        });
+      } else {
+        gameEvents.emit(GAME_EVENTS.ITEM_PICKUP_TX_FAILED, {
+          itemType: data.itemType,
+          error: result.error,
+        });
+      }
+    },
+    [pickupItem]
+  );
+
+  // Subscribe to game events
+  useEffect(() => {
+    gameEvents.on(
+      GAME_EVENTS.COMBAT_START_REQUEST,
+      handleCombatStartRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.PLAYER_ATTACK_REQUEST,
+      handlePlayerAttackRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.PLAYER_FLEE_REQUEST,
+      handlePlayerFleeRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.ENEMY_ATTACK_REQUEST,
+      handleEnemyAttackRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.ITEM_PICKUP_REQUEST,
+      handleItemPickupRequest as (...args: unknown[]) => void
+    );
+
+    return () => {
+      gameEvents.off(
+        GAME_EVENTS.COMBAT_START_REQUEST,
+        handleCombatStartRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.PLAYER_ATTACK_REQUEST,
+        handlePlayerAttackRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.PLAYER_FLEE_REQUEST,
+        handlePlayerFleeRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.ENEMY_ATTACK_REQUEST,
+        handleEnemyAttackRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.ITEM_PICKUP_REQUEST,
+        handleItemPickupRequest as (...args: unknown[]) => void
+      );
+    };
+  }, [
+    handleCombatStartRequest,
+    handlePlayerAttackRequest,
+    handlePlayerFleeRequest,
+    handleEnemyAttackRequest,
+    handleItemPickupRequest,
+  ]);
+
+  // Show pending indicator (optional - could render a loading overlay)
+  if (isPending) {
+    // Transaction in progress - game should show loading state
+  }
+
+  return null; // This is a logic-only component
+}

@@ -152,6 +152,34 @@ export async function executeAuthorizedDungeonAction(
 }
 
 /**
+ * Execute a server-authorized combat action
+ * Used for starting combat and enemy attacks (server-controlled)
+ */
+export async function executeAuthorizedCombatAction(
+  action: 'start_combat' | 'enemy_attack',
+  playerAddress: string,
+  additionalArgs: (string | number)[] = []
+): Promise<{ hash: string; success: boolean }> {
+  const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
+    '0x2b633f672b485166e89bb90903962d5ad26bbf70ce079ed484bae518d89d2dc5';
+
+  const functionMap: Record<string, { fn: string; args: (string | number)[] }> = {
+    start_combat: {
+      fn: `${CONTRACT_ADDRESS}::combat::start_combat`,
+      args: [playerAddress, ...additionalArgs], // player, enemy_type, floor
+    },
+    enemy_attack: {
+      fn: `${CONTRACT_ADDRESS}::combat::enemy_attack`,
+      args: [playerAddress],
+    },
+  };
+
+  const { fn, args } = functionMap[action];
+
+  return executeServerTransaction(fn, [], args);
+}
+
+/**
  * Check if server wallet is registered as authorized server on-chain
  */
 export async function isServerAuthorized(): Promise<boolean> {
