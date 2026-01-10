@@ -154,12 +154,13 @@ export class CombatScene extends Phaser.Scene {
 
   private setupTxEventListeners(): void {
     this.txSuccessHandler = (data: unknown) => {
-      const { action, combatState, enemyIntent, txHash, resumed } = data as {
+      const { action, combatState, enemyIntent, txHash, resumed, playerStats } = data as {
         action: string;
         txHash?: string;
         combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean };
         enemyIntent?: number;
         resumed?: boolean;
+        playerStats?: { health?: number; maxHealth?: number; mana?: number; maxMana?: number };
       };
       console.log(`[CombatScene] TX Success: ${action}`, txHash ? `tx: ${txHash.slice(0, 10)}...` : '', combatState ? `enemyKilled: ${combatState.enemyKilled}` : '', enemyIntent !== undefined ? `intent: ${enemyIntent}` : '', resumed ? '(resumed)' : '');
 
@@ -182,7 +183,7 @@ export class CombatScene extends Phaser.Scene {
 
       switch (action) {
         case 'start_combat':
-          this.onCombatStarted(enemyIntent, combatState, resumed);
+          this.onCombatStarted(enemyIntent, combatState, resumed, playerStats);
           break;
         case 'player_attack':
           this.onPlayerAttackConfirmed(combatState);
@@ -247,6 +248,21 @@ export class CombatScene extends Phaser.Scene {
         return;
       }
 
+      // Handle mana-related errors
+      if (error.includes('NOT_ENOUGH_MANA')) {
+        console.log('[CombatScene] Not enough mana on-chain - syncing local state');
+        // Set local mana to 0 to prevent further mana-consuming attempts
+        // The actual on-chain mana might be > 0 but < required, but this prevents retries
+        this.character.mana = 0;
+        this.updateStatBars();
+        this.addLogMessage('Not enough mana! (On-chain state synced)');
+        soundManager.play('error');
+        this.isWaitingForTx = false;
+        this.isAnimating = false;
+        this.setButtonsEnabled(true);
+        return;
+      }
+
       this.showTxError(error);
       this.isWaitingForTx = false;
       this.isAnimating = false;
@@ -278,7 +294,8 @@ export class CombatScene extends Phaser.Scene {
   private onCombatStarted(
     enemyIntent?: number,
     combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean },
-    resumed?: boolean
+    resumed?: boolean,
+    playerStats?: { health?: number; maxHealth?: number; mana?: number; maxMana?: number }
   ): void {
     this.isWaitingForTx = false;
     this.turnText.setText('YOUR TURN');
@@ -290,6 +307,24 @@ export class CombatScene extends Phaser.Scene {
         this.enemy.maxHealth = combatState.enemyMaxHealth;
       }
       this.updateHealthBars();
+    }
+
+    // Sync player stats from on-chain state (especially mana for heavy attack/heal)
+    if (playerStats) {
+      if (playerStats.health !== undefined && playerStats.health > 0) {
+        this.character.health = playerStats.health;
+      }
+      if (playerStats.maxHealth !== undefined && playerStats.maxHealth > 0) {
+        this.character.maxHealth = playerStats.maxHealth;
+      }
+      if (playerStats.mana !== undefined) {
+        this.character.mana = playerStats.mana;
+      }
+      if (playerStats.maxMana !== undefined && playerStats.maxMana > 0) {
+        this.character.maxMana = playerStats.maxMana;
+      }
+      this.updateStatBars();
+      console.log(`[CombatScene] Synced player stats from chain - HP: ${this.character.health}/${this.character.maxHealth}, Mana: ${this.character.mana}/${this.character.maxMana}`);
     }
 
     // Set initial enemy intent from on-chain state

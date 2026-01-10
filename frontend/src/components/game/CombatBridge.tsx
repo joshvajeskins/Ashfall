@@ -49,6 +49,12 @@ export function CombatBridge() {
           txHash: result.txHash,
           enemyIntent: result.enemyIntent, // Pass on-chain intent
           combatState: result.combatState, // Pass enemy health (for fled enemy persistence)
+          playerStats: {
+            health: result.playerHealth,
+            maxHealth: result.playerMaxHealth,
+            mana: result.playerMana,
+            maxMana: result.playerMaxMana,
+          },
         });
       } else if (result.alreadyInCombat && result.combatState) {
         // Already in combat - emit success with existing state to resume combat
