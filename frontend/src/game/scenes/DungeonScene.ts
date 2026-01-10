@@ -164,8 +164,16 @@ export class DungeonScene extends Phaser.Scene {
     // Always use static sprite - force exact tile size
     const playerTexture = `player-${playerClass}`;
     this.player = this.add.sprite(startX, startY, playerTexture)
-      .setDisplaySize(TILE_SIZE, TILE_SIZE)
       .setDepth(10);
+    this.scalePlayerToTile();
+  }
+
+  private scalePlayerToTile(): void {
+    // Get the current frame dimensions and scale to fit TILE_SIZE
+    const frame = this.player.frame;
+    const scaleX = TILE_SIZE / frame.width;
+    const scaleY = TILE_SIZE / frame.height;
+    this.player.setScale(scaleX, scaleY);
   }
 
   private spawnEnemies(): void {
@@ -372,22 +380,27 @@ export class DungeonScene extends Phaser.Scene {
       this.player.setFlipX(dx < 0);
     }
 
-    // Play move animation if available, force size to stay consistent
+    // Play move animation if available
     const playerClass = this.character.class.toLowerCase();
     const moveAnimKey = `${playerClass}-move`;
     if (this.anims.exists(moveAnimKey)) {
       this.player.play(moveAnimKey);
-      this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
+      // Re-scale after animation starts (frame size may differ from static)
+      this.scalePlayerToTile();
+      // Keep scale consistent on each frame update
+      this.player.on('animationupdate', this.scalePlayerToTile, this);
     }
 
     this.tweens.add({
       targets: this.player, x: newX, y: newY, duration: 150, ease: 'Linear',
       onComplete: () => {
         this.isMoving = false;
-        // Return to static sprite, force size to stay consistent
+        // Remove frame update listener
+        this.player.off('animationupdate', this.scalePlayerToTile, this);
+        // Return to static sprite
         const playerTexture = `player-${playerClass}`;
         this.player.setTexture(playerTexture);
-        this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
+        this.scalePlayerToTile();
         this.checkItemPickup();
       },
     });
