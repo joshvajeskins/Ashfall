@@ -11,6 +11,7 @@ type TransferAction = 'deposit' | 'withdraw';
 interface TransferModalProps {
   item: Item;
   action: TransferAction;
+  itemIndex: number;
   onClose: () => void;
   onComplete?: () => void;
 }
@@ -23,7 +24,7 @@ const RARITY_BORDER: Record<Item['rarity'], string> = {
   Legendary: 'border-orange-500',
 };
 
-export function TransferModal({ item, action, onClose, onComplete }: TransferModalProps) {
+export function TransferModal({ item, action, itemIndex, onClose, onComplete }: TransferModalProps) {
   const { depositToStash, withdrawFromStash, isLoading } = useItemActions();
   const [error, setError] = useState<string | null>(null);
 
@@ -36,8 +37,8 @@ export function TransferModal({ item, action, onClose, onComplete }: TransferMod
   const handleConfirm = async () => {
     setError(null);
     const success = isDeposit
-      ? await depositToStash(item)
-      : await withdrawFromStash(item);
+      ? await depositToStash(item, itemIndex)
+      : await withdrawFromStash(item, itemIndex);
 
     if (success) {
       onComplete?.();

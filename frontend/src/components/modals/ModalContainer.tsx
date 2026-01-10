@@ -50,6 +50,7 @@ export function ModalContainer() {
         <TransferModal
           item={transferState.item}
           action={transferState.action}
+          itemIndex={transferState.itemIndex}
           onClose={closeModal}
         />
       )}

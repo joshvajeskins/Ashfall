@@ -12,6 +12,7 @@ import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 import { useGameStore } from '@/stores/gameStore';
 import { BossWarning } from '@/components/ui/BossWarning';
 import { CombatBridge } from './CombatBridge';
+import { DungeonBridge } from './DungeonBridge';
 
 // Module-level singleton to prevent multiple Phaser instances (React StrictMode fix)
 let globalGameInstance: Phaser.Game | null = null;
@@ -144,6 +145,7 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
       />
       <BossWarning />
       <CombatBridge />
+      <DungeonBridge />
     </div>
   );
 }
