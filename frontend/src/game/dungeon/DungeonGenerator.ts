@@ -116,7 +116,7 @@ export class DungeonGenerator {
       type,
       x,
       y,
-      width: 16,
+      width: 12,
       height: 12,
       enemies: type === 'combat' || type === 'boss' ? this.generateEnemies(floor, type) : [],
       loot: type === 'treasure' ? this.generateLoot(floor) : [],

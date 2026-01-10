@@ -7,7 +7,7 @@ const ASSETS = {
   sprites: {
     players: ['warrior', 'rogue', 'mage'],
     enemies: ['skeleton', 'zombie', 'ghoul', 'vampire', 'lich', 'goblin', 'dragon', 'boss'],
-    items: ['sword', 'shield', 'armor', 'potion', 'ring', 'gold'],
+    items: ['sword', 'shield', 'armour', 'potion', 'ring', 'gold'],
   },
   tiles: ['floor', 'wall', 'door', 'exit', 'chest', 'skull'],
   ui: ['background', 'background-alt'],
@@ -18,6 +18,13 @@ const ASSETS = {
       'button-click', 'menu-open', 'flee', 'error', 'victory'
     ],
     music: ['menu', 'battle', 'victory', 'gameover'],
+  },
+  animations: {
+    players: ['warrior', 'rogue', 'mage'],
+    playerAnims: ['idle', 'move', 'attack', 'critical', 'hit', 'death'],
+    enemies: ['boss', 'ghoul', 'goblin', 'lich', 'skeleton', 'vampire', 'zombie'],
+    enemyAnims: ['idle', 'attack', 'critical', 'hit', 'death'],
+    bossExtraAnims: ['taunt'], // Boss-only animations
   },
 };
 
@@ -77,6 +84,7 @@ export class BootScene extends Phaser.Scene {
     this.loadItemSprites();
     this.loadUIAssets();
     this.loadAudio();
+    this.loadAnimationSpritesheets();
   }
 
   private loadAudio(): void {
@@ -122,6 +130,43 @@ export class BootScene extends Phaser.Scene {
     ASSETS.ui.forEach(asset => {
       this.load.image(`ui-${asset}`, `/assets/ui/${asset}.png`);
     });
+    // Load battle background
+    this.load.image('battle-bg', '/assets/backgrounds/battle.png');
+  }
+
+  private loadAnimationSpritesheets(): void {
+    // Load player animation spritesheets (384x64, 6 frames of 64x64)
+    ASSETS.animations.players.forEach(player => {
+      ASSETS.animations.playerAnims.forEach(anim => {
+        this.load.spritesheet(
+          `${player}-${anim}`,
+          `/assets/characters/animations/${player}-${anim}.png`,
+          { frameWidth: 64, frameHeight: 64 }
+        );
+      });
+    });
+
+    // Load enemy animation spritesheets
+    ASSETS.animations.enemies.forEach(enemy => {
+      ASSETS.animations.enemyAnims.forEach(anim => {
+        this.load.spritesheet(
+          `${enemy}-${anim}`,
+          `/assets/enemies/animations/${enemy}-${anim}.png`,
+          { frameWidth: 64, frameHeight: 64 }
+        );
+      });
+
+      // Load boss-specific extra animations
+      if (enemy === 'boss') {
+        ASSETS.animations.bossExtraAnims.forEach(anim => {
+          this.load.spritesheet(
+            `${enemy}-${anim}`,
+            `/assets/enemies/animations/${enemy}-${anim}.png`,
+            { frameWidth: 64, frameHeight: 64 }
+          );
+        });
+      }
+    });
   }
 
   private setupLoadingEvents(): void {
@@ -146,8 +191,60 @@ export class BootScene extends Phaser.Scene {
     // Generate fallback textures for any assets that failed to load
     this.generateFallbackTextures();
 
+    // Create animations from loaded spritesheets
+    this.createAnimations();
+
     // Emit ready - GameCanvas handles scene transitions
     gameEvents.emit(GAME_EVENTS.SCENE_READY, 'BootScene');
+  }
+
+  private createAnimations(): void {
+    const frameRate = 8;
+
+    // Create player animations
+    ASSETS.animations.players.forEach(player => {
+      ASSETS.animations.playerAnims.forEach(anim => {
+        const key = `${player}-${anim}`;
+        if (this.textures.exists(key) && !this.anims.exists(key)) {
+          this.anims.create({
+            key,
+            frames: this.anims.generateFrameNumbers(key, { start: 0, end: 5 }),
+            frameRate,
+            repeat: anim === 'idle' || anim === 'move' ? -1 : 0,
+          });
+        }
+      });
+    });
+
+    // Create enemy animations
+    ASSETS.animations.enemies.forEach(enemy => {
+      ASSETS.animations.enemyAnims.forEach(anim => {
+        const key = `${enemy}-${anim}`;
+        if (this.textures.exists(key) && !this.anims.exists(key)) {
+          this.anims.create({
+            key,
+            frames: this.anims.generateFrameNumbers(key, { start: 0, end: 5 }),
+            frameRate,
+            repeat: anim === 'idle' ? -1 : 0,
+          });
+        }
+      });
+
+      // Create boss-specific extra animations
+      if (enemy === 'boss') {
+        ASSETS.animations.bossExtraAnims.forEach(anim => {
+          const key = `${enemy}-${anim}`;
+          if (this.textures.exists(key) && !this.anims.exists(key)) {
+            this.anims.create({
+              key,
+              frames: this.anims.generateFrameNumbers(key, { start: 0, end: 5 }),
+              frameRate,
+              repeat: 0,
+            });
+          }
+        });
+      }
+    });
   }
 
   private generateFallbackTextures(): void {
@@ -191,7 +288,7 @@ export class BootScene extends Phaser.Scene {
 
     // Item fallbacks
     const itemColors: Record<string, number> = {
-      sword: 0xaaaaaa, shield: 0x6666aa, armor: 0x886644,
+      sword: 0xaaaaaa, shield: 0x6666aa, armour: 0x886644,
       potion: 0xff4444, ring: 0xffaa00, gold: 0xffcc00,
     };
     ASSETS.sprites.items.forEach(item => {

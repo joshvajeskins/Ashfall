@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useCharacter } from '@/hooks/useCharacter';
 import { useUIStore } from '@/stores/uiStore';
+import { useGameStore } from '@/stores/gameStore';
 import { CharacterCard } from './CharacterCard';
-import { CharacterCreate } from './CharacterCreate';
+import { CharacterCreate, CharacterCreateMode } from './CharacterCreate';
 import { ImagePanel } from '@/components/ui/ImagePanel';
 import { ImageButton } from '@/components/ui/ImageButton';
 import { soundManager } from '@/game/effects/SoundManager';
@@ -17,12 +18,24 @@ interface CharacterSelectProps {
 export function CharacterSelect({ onSelect, onEquipmentClick }: CharacterSelectProps) {
   const { character, isLoading, error, refetch } = useCharacter();
   const { openModal } = useUIStore();
+  const { deleteCharacter } = useGameStore();
   const [showCreate, setShowCreate] = useState(false);
+  const [createMode, setCreateMode] = useState<CharacterCreateMode>('create');
 
   const handleCharacterCreated = async () => {
+    // Clear local store when replacing/reviving
+    if (createMode === 'replace' || createMode === 'revive') {
+      deleteCharacter();
+    }
     setShowCreate(false);
     await refetch();
     onSelect?.();
+  };
+
+  const handleNewCharacter = () => {
+    soundManager.play('buttonClick');
+    setCreateMode('replace');
+    setShowCreate(true);
   };
 
   const handleRefetch = () => {
@@ -156,16 +169,19 @@ export function CharacterSelect({ onSelect, onEquipmentClick }: CharacterSelectP
               size="lg"
               onClick={() => {
                 soundManager.play('buttonClick');
+                // Use 'revive' mode for dead characters, 'create' for new
+                setCreateMode(character && !character.isAlive ? 'revive' : 'create');
                 setShowCreate(true);
               }}
             >
-              Create Character
+              {character && !character.isAlive ? 'Rise Again' : 'Create Character'}
             </ImageButton>
           </div>
         </ImagePanel>
 
         {showCreate && (
           <CharacterCreate
+            mode={createMode}
             onClose={() => setShowCreate(false)}
             onCreated={handleCharacterCreated}
           />
@@ -176,41 +192,67 @@ export function CharacterSelect({ onSelect, onEquipmentClick }: CharacterSelectP
 
   // Character exists and is alive
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <CharacterCard
-        character={character}
-        onEquipmentClick={onEquipmentClick}
-      />
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-        <ImageButton variant="primary" size="lg" onClick={onSelect}>
-          Enter Dungeon
-        </ImageButton>
-        <button
-          style={{
-            width: 56,
-            height: 56,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundImage: 'url(/assets/ui/slots/slot-rare.png)',
-            backgroundSize: '100% 100%',
-            imageRendering: 'pixelated' as const,
-            border: 'none',
-            cursor: 'pointer',
-          }}
-          title="View Stash"
-          onClick={() => {
-            soundManager.play('menuOpen');
-            openModal('stash');
-          }}
-        >
-          <img
-            src="/assets/environment/chest.png"
-            alt="Stash"
-            style={{ width: 40, height: 40, imageRendering: 'pixelated' }}
-          />
-        </button>
+    <>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <CharacterCard
+          character={character}
+          onEquipmentClick={onEquipmentClick}
+        />
+        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+          <ImageButton variant="primary" size="lg" onClick={onSelect}>
+            Enter Dungeon
+          </ImageButton>
+          <button
+            style={{
+              width: 56,
+              height: 56,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundImage: 'url(/assets/ui/slots/slot-rare.png)',
+              backgroundSize: '100% 100%',
+              imageRendering: 'pixelated' as const,
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            title="View Stash"
+            onClick={() => {
+              soundManager.play('menuOpen');
+              openModal('stash');
+            }}
+          >
+            <img
+              src="/assets/environment/chest.png"
+              alt="Stash"
+              style={{ width: 40, height: 40, imageRendering: 'pixelated' }}
+            />
+          </button>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <button
+            onClick={handleNewCharacter}
+            style={{
+              fontSize: 12,
+              color: '#9ca3af',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              textShadow: '1px 1px 0 #000',
+            }}
+          >
+            Start Fresh (New Character)
+          </button>
+        </div>
       </div>
-    </div>
+
+      {showCreate && (
+        <CharacterCreate
+          mode={createMode}
+          onClose={() => setShowCreate(false)}
+          onCreated={handleCharacterCreated}
+        />
+      )}
+    </>
   );
 }

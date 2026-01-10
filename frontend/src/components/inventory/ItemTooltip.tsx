@@ -18,7 +18,7 @@ const RARITY_COLORS: Record<Item['rarity'], string> = {
 
 const TYPE_IMAGES: Record<Item['type'], string> = {
   Weapon: '/assets/items/sword.png',
-  Armor: '/assets/items/armor.png',
+  Armor: '/assets/items/armour.png',
   Accessory: '/assets/items/ring.png',
   Consumable: '/assets/items/potion.png',
 };

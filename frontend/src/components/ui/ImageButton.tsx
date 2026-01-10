@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react';
 import { soundManager } from '@/game/effects/SoundManager';
 
-type ButtonVariant = 'primary' | 'secondary';
+type ButtonVariant = 'primary' | 'secondary' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
 type SoundType = 'proceed' | 'cancel';
 
@@ -25,6 +25,12 @@ const BUTTON_IMAGES: Record<ButtonVariant, { normal: string; hover: string; pres
     normal: '/assets/ui/buttons/btn-secondary-normal.png',
     hover: '/assets/ui/buttons/btn-secondary-hover.png',
     pressed: '/assets/ui/buttons/btn-secondary-pressed.png',
+  },
+  danger: {
+    // Uses primary buttons with red hue filter
+    normal: '/assets/ui/buttons/btn-primary-normal.png',
+    hover: '/assets/ui/buttons/btn-primary-hover.png',
+    pressed: '/assets/ui/buttons/btn-primary-pressed.png',
   },
 };
 
@@ -65,6 +71,7 @@ export function ImageButton({
   const handleMouseUp = () => !disabled && setState('hover');
 
   const currentImage = disabled ? images.normal : images[state];
+  const isDanger = variant === 'danger';
 
   return (
     <button
@@ -88,11 +95,12 @@ export function ImageButton({
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         transform: state === 'pressed' && !disabled ? 'translateY(2px)' : 'none',
-        transition: 'transform 100ms',
+        transition: 'transform 100ms, filter 100ms',
         backgroundImage: `url(${currentImage})`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         imageRendering: 'pixelated' as const,
+        filter: isDanger ? 'hue-rotate(-40deg) saturate(1.5)' : 'none',
         ...style,
       }}
       {...props}

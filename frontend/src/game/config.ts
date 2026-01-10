@@ -1,8 +1,8 @@
 import * as Phaser from 'phaser';
 
-export const GAME_WIDTH = 800;
+export const GAME_WIDTH = 600;
 export const GAME_HEIGHT = 600;
-export const TILE_SIZE = 50; // 800/16=50, 600/12=50 - perfect fit
+export const TILE_SIZE = 50; // 600/12=50 - square tiles for 12x12 grid (10 + 2 walls each side)
 
 export const gameConfig: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -20,6 +20,7 @@ export const gameConfig: Phaser.Types.Core.GameConfig = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+    parent: 'game-container',
   },
 };
 

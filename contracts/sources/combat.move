@@ -28,6 +28,18 @@ module ashfall::combat {
     const TURN_PLAYER: u8 = 0;
     const TURN_ENEMY: u8 = 1;
 
+    // Enemy intent enum
+    const INTENT_ATTACK: u8 = 0;
+    const INTENT_HEAVY_ATTACK: u8 = 1;
+    const INTENT_DEFEND: u8 = 2;
+
+    // Mana costs
+    const HEAVY_ATTACK_MANA: u64 = 20;
+    const HEAL_MANA: u64 = 30;
+
+    // Error codes for new actions
+    const E_NOT_ENOUGH_MANA: u64 = 10;
+
     // =============================================
     // SERVER AUTHORIZATION
     // =============================================
@@ -69,7 +81,11 @@ module ashfall::combat {
         floor: u64,
         last_damage_dealt: u64,
         last_damage_taken: u64,
-        last_was_crit: bool
+        last_was_crit: bool,
+        // New combat mechanics
+        player_is_defending: bool,
+        enemy_is_defending: bool,
+        enemy_next_intent: u8  // 0=attack, 1=heavy_attack, 2=defend
     }
 
     // =============================================
@@ -115,6 +131,35 @@ module ashfall::combat {
         success: bool
     }
 
+    #[event]
+    struct PlayerDefended has drop, store {
+        player: address
+    }
+
+    #[event]
+    struct PlayerHeavyAttacked has drop, store {
+        player: address,
+        damage: u64,
+        was_crit: bool,
+        enemy_health_remaining: u64,
+        enemy_killed: bool,
+        mana_used: u64
+    }
+
+    #[event]
+    struct PlayerHealed has drop, store {
+        player: address,
+        amount_healed: u64,
+        new_health: u64,
+        mana_used: u64
+    }
+
+    #[event]
+    struct EnemyIntentRevealed has drop, store {
+        player: address,
+        intent: u8  // 0=attack, 1=heavy_attack, 2=defend
+    }
+
     // =============================================
     // START COMBAT - Server only
     // =============================================
@@ -137,6 +182,9 @@ module ashfall::combat {
 
         let now = timestamp::now_seconds();
 
+        // Generate initial enemy intent (seed from timestamp)
+        let initial_intent = generate_enemy_intent(now);
+
         if (exists<CombatState>(player)) {
             let combat = borrow_global_mut<CombatState>(player);
             assert!(!combat.is_active, E_ALREADY_IN_COMBAT);
@@ -152,6 +200,9 @@ module ashfall::combat {
             combat.last_damage_dealt = 0;
             combat.last_damage_taken = 0;
             combat.last_was_crit = false;
+            combat.player_is_defending = false;
+            combat.enemy_is_defending = false;
+            combat.enemy_next_intent = initial_intent;
         } else {
             move_to(server, CombatState {
                 player,
@@ -163,9 +214,15 @@ module ashfall::combat {
                 floor,
                 last_damage_dealt: 0,
                 last_damage_taken: 0,
-                last_was_crit: false
+                last_was_crit: false,
+                player_is_defending: false,
+                enemy_is_defending: false,
+                enemy_next_intent: initial_intent
             });
         };
+
+        // Emit enemy intent so frontend can display it
+        event::emit(EnemyIntentRevealed { player, intent: initial_intent });
 
         let enemy_for_event = spawn_enemy_by_type(enemy_type);
         event::emit(CombatStarted {
@@ -255,9 +312,11 @@ module ashfall::combat {
     // =============================================
 
     /// Enemy attacks the player. Server-only (invisible wallet).
+    /// Now executes based on enemy_next_intent.
     public entry fun enemy_attack(
         server: &signer,
-        player: address
+        player: address,
+        seed: u64
     ) acquires ServerConfig, CombatState {
         let server_addr = signer::address_of(server);
         assert!(is_authorized_server(server_addr), E_UNAUTHORIZED);
@@ -267,19 +326,52 @@ module ashfall::combat {
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_ENEMY, E_NOT_ENEMY_TURN);
 
+        let intent = combat.enemy_next_intent;
         let enemy_attack_power = enemies::get_attack(&combat.enemy);
 
-        // Apply damage to player via hero module (handles armor reduction)
-        let (new_health, player_killed) = hero::take_combat_damage_to_player(player, enemy_attack_power);
+        // Execute based on intent
+        let actual_damage = if (intent == INTENT_DEFEND) {
+            // Enemy defends - no attack, sets defending flag
+            combat.enemy_is_defending = true;
+            0
+        } else if (intent == INTENT_HEAVY_ATTACK) {
+            // Heavy attack: 1.5x damage
+            (enemy_attack_power * 3) / 2
+        } else {
+            // Normal attack
+            enemy_attack_power
+        };
 
-        combat.last_damage_taken = enemy_attack_power;
+        // Apply player defend reduction (50% if defending)
+        let final_damage = if (combat.player_is_defending && actual_damage > 0) {
+            actual_damage / 2
+        } else {
+            actual_damage
+        };
+
+        // Reset player defending status
+        combat.player_is_defending = false;
+
+        // Apply damage if not defending
+        let (new_health, player_killed) = if (final_damage > 0) {
+            hero::take_combat_damage_to_player(player, final_damage)
+        } else {
+            // Enemy defended, get current health
+            let (_, _, health, _, _, _, _, _) = hero::get_character_stats(player);
+            (health, false)
+        };
+
+        combat.last_damage_taken = final_damage;
+
+        // Generate new intent for next enemy turn
+        combat.enemy_next_intent = generate_enemy_intent(seed);
 
         if (player_killed) {
             combat.is_active = false;
 
             event::emit(EnemyAttacked {
                 player,
-                damage: enemy_attack_power,
+                damage: final_damage,
                 player_health_remaining: 0,
                 player_killed: true
             });
@@ -295,9 +387,15 @@ module ashfall::combat {
 
             event::emit(EnemyAttacked {
                 player,
-                damage: enemy_attack_power,
+                damage: final_damage,
                 player_health_remaining: new_health,
                 player_killed: false
+            });
+
+            // Emit new intent for frontend
+            event::emit(EnemyIntentRevealed {
+                player,
+                intent: combat.enemy_next_intent
             });
         }
     }
@@ -342,6 +440,155 @@ module ashfall::combat {
     }
 
     // =============================================
+    // PLAYER DEFEND - Reduces next incoming damage by 50%
+    // =============================================
+
+    /// Player defends, reducing next enemy attack damage by 50%.
+    public entry fun player_defend(
+        player_signer: &signer
+    ) acquires CombatState {
+        let player = signer::address_of(player_signer);
+        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+
+        let combat = borrow_global_mut<CombatState>(player);
+        assert!(combat.is_active, E_COMBAT_ENDED);
+        assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
+
+        combat.player_is_defending = true;
+        combat.turn_count = combat.turn_count + 1;
+        combat.current_turn = TURN_ENEMY;
+
+        event::emit(PlayerDefended { player });
+    }
+
+    // =============================================
+    // PLAYER HEAVY ATTACK - 1.5x damage, costs 20 mana
+    // =============================================
+
+    /// Player performs a heavy attack for 1.5x damage, costs 20 mana.
+    public entry fun player_heavy_attack(
+        player_signer: &signer,
+        seed: u64
+    ) acquires CombatState {
+        let player = signer::address_of(player_signer);
+        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+
+        let combat = borrow_global_mut<CombatState>(player);
+        assert!(combat.is_active, E_COMBAT_ENDED);
+        assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
+
+        // Check and consume mana
+        let has_mana = hero::use_mana_from_player(player, HEAVY_ATTACK_MANA);
+        assert!(has_mana, E_NOT_ENOUGH_MANA);
+
+        // Calculate damage (1.5x multiplier)
+        let (strength, agility, _) = hero::get_base_stats(player);
+        let weapon_damage = if (hero::has_weapon_equipped(player)) { 15 } else { 5 };
+
+        let base_damage = 5u64;
+        let strength_bonus = strength / 2;
+        let total_damage = base_damage + weapon_damage + strength_bonus;
+
+        // Apply 1.5x heavy attack multiplier
+        let heavy_damage = (total_damage * 3) / 2;
+
+        // Crit check: 5% + (agility * 0.2%)
+        let crit_threshold = 50 + (agility * 2);
+        let crit_roll = seed % 1000;
+        let was_crit = crit_roll < crit_threshold;
+        let final_damage = if (was_crit) { heavy_damage * 2 } else { heavy_damage };
+
+        // Check if enemy is defending (halves damage)
+        let actual_damage = if (combat.enemy_is_defending) {
+            final_damage / 2
+        } else {
+            final_damage
+        };
+
+        // Apply damage to enemy
+        let enemy_killed = enemies::take_damage(&mut combat.enemy, actual_damage);
+        let enemy_health_remaining = enemies::get_health(&combat.enemy);
+
+        combat.last_damage_dealt = actual_damage;
+        combat.last_was_crit = was_crit;
+        combat.turn_count = combat.turn_count + 1;
+        combat.enemy_is_defending = false; // Reset enemy defend
+
+        event::emit(PlayerHeavyAttacked {
+            player,
+            damage: actual_damage,
+            was_crit,
+            enemy_health_remaining,
+            enemy_killed,
+            mana_used: HEAVY_ATTACK_MANA
+        });
+
+        if (enemy_killed) {
+            let xp = enemies::get_exp_reward(&combat.enemy);
+            hero::add_experience_to_player(player, xp);
+            combat.is_active = false;
+
+            event::emit(CombatEnded {
+                player,
+                winner: 0,
+                turns_taken: combat.turn_count,
+                xp_earned: xp
+            });
+        } else {
+            combat.current_turn = TURN_ENEMY;
+        }
+    }
+
+    // =============================================
+    // PLAYER HEAL - Costs 30 mana, heals 30% max HP
+    // =============================================
+
+    /// Player heals for 30% of max HP, costs 30 mana.
+    public entry fun player_heal(
+        player_signer: &signer
+    ) acquires CombatState {
+        let player = signer::address_of(player_signer);
+        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+
+        let combat = borrow_global_mut<CombatState>(player);
+        assert!(combat.is_active, E_COMBAT_ENDED);
+        assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
+
+        // Check and consume mana
+        let has_mana = hero::use_mana_from_player(player, HEAL_MANA);
+        assert!(has_mana, E_NOT_ENOUGH_MANA);
+
+        // Heal 30% of max HP
+        let (amount_healed, new_health) = hero::heal_player_percent(player, 30);
+
+        combat.turn_count = combat.turn_count + 1;
+        combat.current_turn = TURN_ENEMY;
+
+        event::emit(PlayerHealed {
+            player,
+            amount_healed,
+            new_health,
+            mana_used: HEAL_MANA
+        });
+    }
+
+    // =============================================
+    // HELPER: Generate enemy intent
+    // =============================================
+
+    fun generate_enemy_intent(seed: u64): u8 {
+        // 60% attack, 25% heavy attack, 15% defend
+        let roll = seed % 100;
+        if (roll < 60) {
+            INTENT_ATTACK
+        } else if (roll < 85) {
+            INTENT_HEAVY_ATTACK
+        } else {
+            INTENT_DEFEND
+        }
+    }
+
+    // =============================================
     // VIEW FUNCTIONS
     // =============================================
 
@@ -373,5 +620,25 @@ module ashfall::combat {
     public fun whose_turn(player: address): u8 acquires CombatState {
         let combat = borrow_global<CombatState>(player);
         combat.current_turn
+    }
+
+    #[view]
+    public fun get_enemy_intent(player: address): u8 acquires CombatState {
+        let combat = borrow_global<CombatState>(player);
+        combat.enemy_next_intent
+    }
+
+    #[view]
+    public fun get_combat_details(player: address): (u64, u64, u8, bool, bool, bool, u8) acquires CombatState {
+        let combat = borrow_global<CombatState>(player);
+        (
+            enemies::get_health(&combat.enemy),
+            enemies::get_max_health(&combat.enemy),
+            combat.current_turn,
+            combat.is_active,
+            combat.player_is_defending,
+            combat.enemy_is_defending,
+            combat.enemy_next_intent
+        )
     }
 }

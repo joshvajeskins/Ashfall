@@ -65,11 +65,17 @@ export const GAME_EVENTS = {
   PLAYER_ATTACK_REQUEST: 'combat:playerAttackRequest',
   PLAYER_FLEE_REQUEST: 'combat:playerFleeRequest',
   ENEMY_ATTACK_REQUEST: 'combat:enemyAttackRequest',
+  PLAYER_DEFEND_REQUEST: 'combat:playerDefendRequest',
+  PLAYER_HEAVY_ATTACK_REQUEST: 'combat:playerHeavyAttackRequest',
+  PLAYER_HEAL_REQUEST: 'combat:playerHealRequest',
 
   // Combat transaction responses (React -> Phaser)
   COMBAT_TX_SUCCESS: 'combat:txSuccess',
   COMBAT_TX_FAILED: 'combat:txFailed',
   COMBAT_TX_PENDING: 'combat:txPending',
+
+  // Enemy intent events
+  ENEMY_INTENT_UPDATE: 'combat:enemyIntentUpdate',
 
   // Dungeon events
   DUNGEON_ENTER: 'dungeon:enter',

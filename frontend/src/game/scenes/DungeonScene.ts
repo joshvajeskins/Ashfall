@@ -5,16 +5,16 @@ import { DungeonGenerator } from '../dungeon';
 import { ParticleEffects, TransitionManager, RarityEffects, soundManager } from '../effects';
 import type { Character, Enemy, Room, DungeonLayout, Item } from '@/types';
 
-// Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (50px)
-const TILE_SCALE = 50 / 900; // Tiles: 900px -> 50px (fills 800x600 with 16x12 grid)
-const PLAYER_SCALE = 44 / 900; // Player: 900px -> 44px (fits inside tile)
-const ENEMY_SCALE = 40 / 900; // Enemy: 900px -> 40px
-const ITEM_SCALE = 30 / 900; // Items: 900px -> 30px (smaller pickup items)
-const BOSS_SCALE = 90 / 900; // Boss: 900px -> 90px (almost 2 tiles)
+// Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (46px)
+const TILE_SCALE = 46 / 900; // Tiles: 900px -> 46px (13x13 grid)
+const PLAYER_SCALE = 46 / 900; // Player: 900px -> 46px (fills the tile)
+const ENEMY_SCALE = 38 / 900; // Enemy: 900px -> 38px
+const ITEM_SCALE = 28 / 900; // Items: 900px -> 28px (smaller pickup items)
+const BOSS_SCALE = 82 / 900; // Boss: 900px -> 82px (almost 2 tiles)
 
 // Animation sprite scaling - sprites are 64x64, need to scale to fit tile
-const ANIM_PLAYER_SCALE = 44 / 64; // Animated player: 64px -> 44px
-const ANIM_ENEMY_SCALE = 40 / 64; // Animated enemy: 64px -> 40px
+const ANIM_PLAYER_SCALE = 46 / 64; // Animated player: 64px -> 46px (fills the tile)
+const ANIM_ENEMY_SCALE = 38 / 64; // Animated enemy: 64px -> 38px
 
 interface DungeonEnemy {
   sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
@@ -160,21 +160,12 @@ export class DungeonScene extends Phaser.Scene {
     const startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
     const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
     const playerClass = this.character.class.toLowerCase();
-    const idleAnimKey = `${playerClass}-idle`;
 
-    // Use animated sprite if available
-    if (this.textures.exists(idleAnimKey)) {
-      this.player = this.add.sprite(startX, startY, idleAnimKey)
-        .setScale(ANIM_PLAYER_SCALE)
-        .setDepth(10);
-      this.player.play(idleAnimKey);
-    } else {
-      // Fallback to static sprite
-      const playerTexture = `player-${playerClass}`;
-      this.player = this.add.sprite(startX, startY, playerTexture)
-        .setScale(PLAYER_SCALE)
-        .setDepth(10);
-    }
+    // Always use static sprite for idle state
+    const playerTexture = `player-${playerClass}`;
+    this.player = this.add.sprite(startX, startY, playerTexture)
+      .setScale(PLAYER_SCALE)
+      .setDepth(10);
   }
 
   private spawnEnemies(): void {
@@ -189,23 +180,17 @@ export class DungeonScene extends Phaser.Scene {
     // Enemy types vary by floor
     const enemyTypes = this.getEnemyTypesForFloor();
     this.currentRoom.enemies.forEach((enemy, i) => {
-      const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
-      const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
+      const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
+      const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
       const enemyType = enemyTypes[i % enemyTypes.length];
-      const idleAnimKey = `${enemyType}-idle`;
 
-      // Check if enemy has animations (vampire, zombie)
-      const hasAnimations = this.textures.exists(idleAnimKey);
+      // Check if enemy has combat animations (attack, hit, death) - not idle
+      const hasAnimations = this.textures.exists(`${enemyType}-attack`);
 
-      if (hasAnimations) {
-        const sprite = this.add.sprite(x, y, idleAnimKey).setScale(ANIM_ENEMY_SCALE).setDepth(9);
-        sprite.play(idleAnimKey);
-        this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations: true });
-      } else {
-        const key = `enemy-${enemyType}`;
-        const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
-        this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations: false });
-      }
+      // Always use static sprite for idle state
+      const key = `enemy-${enemyType}`;
+      const sprite = this.add.image(x, y, key).setScale(ENEMY_SCALE).setDepth(9);
+      this.enemies.push({ sprite, data: { ...enemy, id: i, name: enemyType }, hasAnimations });
     });
   }
 
@@ -251,7 +236,7 @@ export class DungeonScene extends Phaser.Scene {
     // Map item type to sprite key
     const typeMap: Record<string, string> = {
       'Weapon': 'item-sword',
-      'Armor': 'item-armor',
+      'Armor': 'item-armour',
       'Accessory': 'item-ring',
       'Consumable': 'item-potion',
     };
@@ -267,8 +252,8 @@ export class DungeonScene extends Phaser.Scene {
   private spawnItems(): void {
     if (this.currentRoom.cleared || this.currentRoom.type !== 'treasure') return;
     this.currentRoom.loot.forEach((item) => {
-      const x = Phaser.Math.Between(3, this.currentRoom.width - 4) * TILE_SIZE + TILE_SIZE / 2;
-      const y = Phaser.Math.Between(3, this.currentRoom.height - 4) * TILE_SIZE + TILE_SIZE / 2;
+      const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
+      const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
       const key = this.getItemSpriteKey(item);
       const sprite = this.add.image(x, y, key).setScale(ITEM_SCALE).setDepth(5).setData('itemData', item);
       this.items.push(sprite);

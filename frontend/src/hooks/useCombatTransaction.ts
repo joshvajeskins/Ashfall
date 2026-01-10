@@ -205,6 +205,200 @@ export function useCombatTransaction() {
   }, [authenticated, movementWallet, signRawHash]);
 
   /**
+   * Player defend - User wallet signs (gas sponsored)
+   * Reduces next incoming damage by 50%
+   */
+  const playerDefend = useCallback(async (): Promise<CombatResult> => {
+    if (!authenticated || !movementWallet) {
+      return { success: false, error: 'Wallet not connected' };
+    }
+
+    setIsPending(true);
+    setLastError(null);
+
+    try {
+      const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: movementWallet.address,
+          function: `${CONTRACT_ADDRESS}::combat::player_defend`,
+          typeArguments: [],
+          functionArguments: [],
+        }),
+      });
+
+      if (!buildResponse.ok) {
+        throw new Error('Failed to build defend transaction');
+      }
+
+      const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
+        await buildResponse.json();
+
+      const { signature } = await signRawHash({
+        address: movementWallet.address,
+        chainType: 'aptos',
+        hash,
+      });
+
+      const submitResponse = await fetch(`${API_BASE_URL}/api/submit-sponsored`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawTxnHex,
+          publicKey: movementWallet.publicKey,
+          signature,
+          feePayerAddress,
+          feePayerAuthenticatorHex,
+        }),
+      });
+
+      if (!submitResponse.ok) {
+        throw new Error('Failed to submit defend transaction');
+      }
+
+      const result = await submitResponse.json();
+      return { success: true, txHash: result.hash };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Defend failed';
+      setLastError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsPending(false);
+    }
+  }, [authenticated, movementWallet, signRawHash]);
+
+  /**
+   * Player heavy attack - User wallet signs (gas sponsored)
+   * Costs 20 mana, deals 1.5x damage
+   */
+  const playerHeavyAttack = useCallback(async (): Promise<CombatResult> => {
+    if (!authenticated || !movementWallet) {
+      return { success: false, error: 'Wallet not connected' };
+    }
+
+    setIsPending(true);
+    setLastError(null);
+
+    try {
+      const seed = Math.floor(Math.random() * 1000000);
+
+      const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: movementWallet.address,
+          function: `${CONTRACT_ADDRESS}::combat::player_heavy_attack`,
+          typeArguments: [],
+          functionArguments: [seed],
+        }),
+      });
+
+      if (!buildResponse.ok) {
+        throw new Error('Failed to build heavy attack transaction');
+      }
+
+      const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
+        await buildResponse.json();
+
+      const { signature } = await signRawHash({
+        address: movementWallet.address,
+        chainType: 'aptos',
+        hash,
+      });
+
+      const submitResponse = await fetch(`${API_BASE_URL}/api/submit-sponsored`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawTxnHex,
+          publicKey: movementWallet.publicKey,
+          signature,
+          feePayerAddress,
+          feePayerAuthenticatorHex,
+        }),
+      });
+
+      if (!submitResponse.ok) {
+        throw new Error('Failed to submit heavy attack transaction');
+      }
+
+      const result = await submitResponse.json();
+      return { success: true, txHash: result.hash };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Heavy attack failed';
+      setLastError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsPending(false);
+    }
+  }, [authenticated, movementWallet, signRawHash]);
+
+  /**
+   * Player heal - User wallet signs (gas sponsored)
+   * Costs 30 mana, heals 30% of max HP
+   */
+  const playerHeal = useCallback(async (): Promise<CombatResult> => {
+    if (!authenticated || !movementWallet) {
+      return { success: false, error: 'Wallet not connected' };
+    }
+
+    setIsPending(true);
+    setLastError(null);
+
+    try {
+      const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sender: movementWallet.address,
+          function: `${CONTRACT_ADDRESS}::combat::player_heal`,
+          typeArguments: [],
+          functionArguments: [],
+        }),
+      });
+
+      if (!buildResponse.ok) {
+        throw new Error('Failed to build heal transaction');
+      }
+
+      const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
+        await buildResponse.json();
+
+      const { signature } = await signRawHash({
+        address: movementWallet.address,
+        chainType: 'aptos',
+        hash,
+      });
+
+      const submitResponse = await fetch(`${API_BASE_URL}/api/submit-sponsored`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rawTxnHex,
+          publicKey: movementWallet.publicKey,
+          signature,
+          feePayerAddress,
+          feePayerAuthenticatorHex,
+        }),
+      });
+
+      if (!submitResponse.ok) {
+        throw new Error('Failed to submit heal transaction');
+      }
+
+      const result = await submitResponse.json();
+      return { success: true, txHash: result.hash };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Heal failed';
+      setLastError(errorMsg);
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsPending(false);
+    }
+  }, [authenticated, movementWallet, signRawHash]);
+
+  /**
    * Enemy attack - Server-side (invisible wallet)
    */
   const triggerEnemyAttack = useCallback(async (): Promise<CombatResult> => {
@@ -335,6 +529,9 @@ export function useCombatTransaction() {
     initiateCombat,
     playerAttack,
     playerFlee,
+    playerDefend,
+    playerHeavyAttack,
+    playerHeal,
     triggerEnemyAttack,
     pickupItem,
     isPending,

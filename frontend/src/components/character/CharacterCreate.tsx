@@ -8,9 +8,12 @@ import { ImageButton } from '@/components/ui/ImageButton';
 import { ImagePanel, PanelDivider } from '@/components/ui/ImagePanel';
 import { soundManager } from '@/game/effects/SoundManager';
 
+export type CharacterCreateMode = 'create' | 'replace' | 'revive';
+
 interface CharacterCreateProps {
   onClose: () => void;
   onCreated: () => void;
+  mode?: CharacterCreateMode;
 }
 
 const CLASSES: CharacterClass[] = ['Warrior', 'Rogue', 'Mage'];
@@ -21,18 +24,34 @@ const CLASS_IMAGES: Record<CharacterClass, string> = {
   Mage: '/assets/characters/mage.png',
 };
 
-const CLASS_CARDS: Record<CharacterClass, string> = {
-  Warrior: '/assets/ui/cards/card-warrior.png',
-  Rogue: '/assets/ui/cards/card-rogue.png',
-  Mage: '/assets/ui/cards/card-mage.png',
-};
-
-const FRAME_PORTRAIT = '/assets/ui/decorative/frame-portrait.png';
 const ICON_CLOSE = '/assets/ui/icons/icon-close.png';
 
-export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
+const MODE_CONFIG = {
+  create: {
+    title: 'Create Character',
+    instruction: 'Choose your class. This decision is permanent.',
+    buttonText: 'Create',
+    buttonTextLoading: 'Creating...',
+  },
+  replace: {
+    title: 'Replace Character',
+    instruction: 'Warning: Your current character and ALL equipped items will be permanently destroyed!',
+    buttonText: 'Replace Character',
+    buttonTextLoading: 'Replacing...',
+  },
+  revive: {
+    title: 'Rise Again',
+    instruction: 'Your hero has fallen. Choose a new class to continue your journey.',
+    buttonText: 'Begin Anew',
+    buttonTextLoading: 'Creating...',
+  },
+};
+
+export function CharacterCreate({ onClose, onCreated, mode = 'create' }: CharacterCreateProps) {
   const [selectedClass, setSelectedClass] = useState<CharacterClass | null>(null);
-  const { createCharacter, isCreating, error } = useCreateCharacter();
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const { createCharacter, replaceCharacter, isCreating, error } = useCreateCharacter();
+  const config = MODE_CONFIG[mode];
 
   const handleClassSelect = (cls: CharacterClass) => {
     soundManager.play('buttonClick');
@@ -41,15 +60,32 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
 
   const handleCreate = async () => {
     if (!selectedClass) return;
+
+    // For replace mode, show confirmation first
+    if (mode === 'replace' && !showConfirmation) {
+      soundManager.play('buttonClick');
+      setShowConfirmation(true);
+      return;
+    }
+
     soundManager.play('buttonClick');
 
-    const success = await createCharacter(selectedClass);
+    // Use replaceCharacter for replace/revive modes (handles existing character)
+    const success = mode === 'create'
+      ? await createCharacter(selectedClass)
+      : await replaceCharacter(selectedClass);
+
     if (success) {
       soundManager.play('levelUp');
       onCreated();
     } else {
       soundManager.play('error');
     }
+  };
+
+  const handleCancelConfirmation = () => {
+    soundManager.play('error');
+    setShowConfirmation(false);
   };
 
   const handleClose = () => {
@@ -77,29 +113,31 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
               className="text-xl font-bold text-yellow-100"
               style={{ textShadow: '2px 2px 0 #000' }}
             >
-              Create Character
+              {config.title}
             </h2>
-            <button
-              onClick={handleClose}
-              className="w-8 h-8 hover:brightness-125 transition-all"
-            >
-              <img
-                src={ICON_CLOSE}
-                alt="Close"
-                className="w-full h-full"
-                style={{ imageRendering: 'pixelated' }}
-              />
-            </button>
+            {mode !== 'revive' && (
+              <button
+                onClick={handleClose}
+                className="w-8 h-8 hover:brightness-125 transition-all"
+              >
+                <img
+                  src={ICON_CLOSE}
+                  alt="Close"
+                  className="w-full h-full"
+                  style={{ imageRendering: 'pixelated' }}
+                />
+              </button>
+            )}
           </div>
 
           <PanelDivider />
 
           {/* Instructions */}
           <p
-            className="text-center text-gray-300 mb-4"
+            className={`text-center mb-4 ${mode === 'replace' ? 'text-red-400' : 'text-gray-300'}`}
             style={{ textShadow: '1px 1px 0 #000' }}
           >
-            Choose your class. This decision is permanent.
+            {config.instruction}
           </p>
 
           {/* Class selection */}
@@ -109,30 +147,17 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
                 key={cls}
                 onClick={() => handleClassSelect(cls)}
                 className={`
-                  relative p-2 transition-all hover:scale-105
-                  ${selectedClass === cls ? 'scale-105 brightness-125' : 'brightness-90 hover:brightness-100'}
+                  relative p-3 transition-all hover:scale-105 rounded-lg
+                  ${selectedClass === cls ? 'scale-105 bg-yellow-900/40 ring-2 ring-yellow-400' : 'bg-black/30 hover:bg-black/50'}
                 `}
-                style={{
-                  backgroundImage: `url(${CLASS_CARDS[cls]})`,
-                  backgroundSize: '100% 100%',
-                  imageRendering: 'pixelated',
-                }}
               >
-                <div className="flex flex-col items-center py-2">
-                  <div className="relative w-16 h-16 mb-2">
-                    <img
-                      src={FRAME_PORTRAIT}
-                      alt=""
-                      className="absolute inset-0 w-full h-full"
-                      style={{ imageRendering: 'pixelated' }}
-                    />
-                    <img
-                      src={CLASS_IMAGES[cls]}
-                      alt={cls}
-                      className="absolute inset-1 w-14 h-14 object-contain"
-                      style={{ imageRendering: 'pixelated' }}
-                    />
-                  </div>
+                <div className="flex flex-col items-center">
+                  <img
+                    src={CLASS_IMAGES[cls]}
+                    alt={cls}
+                    className="w-24 h-24 object-contain mb-2"
+                    style={{ imageRendering: 'pixelated' }}
+                  />
                   <h3
                     className="font-bold text-yellow-100 text-lg"
                     style={{ textShadow: '2px 2px 0 #000' }}
@@ -151,9 +176,6 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
                     <span className="text-blue-400">INT {CLASS_STATS[cls].intelligence}</span>
                   </div>
                 </div>
-                {selectedClass === cls && (
-                  <div className="absolute inset-0 border-4 border-yellow-400 pointer-events-none" />
-                )}
               </button>
             ))}
           </div>
@@ -163,20 +185,21 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
           {/* Stats preview */}
           {selectedClass && (
             <div
-              className="p-4 mb-4"
+              className="mb-4"
               style={{
                 backgroundImage: 'url(/assets/ui/panels/panel-small.png)',
                 backgroundSize: '100% 100%',
                 imageRendering: 'pixelated',
+                padding: '32px 56px',
               }}
             >
               <h4
-                className="text-sm font-bold text-yellow-100 mb-2"
+                className="text-sm font-bold text-yellow-100 mb-2 text-center"
                 style={{ textShadow: '1px 1px 0 #000' }}
               >
                 Starting Stats
               </h4>
-              <div className="grid grid-cols-2 gap-2 text-sm">
+              <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Health</span>
                   <span className="text-white font-bold">100</span>
@@ -214,26 +237,70 @@ export function CharacterCreate({ onClose, onCreated }: CharacterCreateProps) {
 
           {/* Footer buttons */}
           <div className="flex gap-4 justify-center">
+            {mode !== 'revive' && (
+              <ImageButton
+                variant="secondary"
+                size="md"
+                onClick={handleClose}
+                disabled={isCreating}
+                soundType="cancel"
+                playSound={false}
+              >
+                Cancel
+              </ImageButton>
+            )}
             <ImageButton
-              variant="secondary"
-              size="md"
-              onClick={handleClose}
-              disabled={isCreating}
-              soundType="cancel"
-              playSound={false}
-            >
-              Cancel
-            </ImageButton>
-            <ImageButton
-              variant="primary"
+              variant={mode === 'replace' ? 'danger' : 'primary'}
               size="md"
               onClick={handleCreate}
               disabled={!selectedClass || isCreating}
             >
-              {isCreating ? 'Creating...' : 'Create'}
+              {isCreating ? config.buttonTextLoading : config.buttonText}
             </ImageButton>
           </div>
         </ImagePanel>
+
+        {/* Confirmation Modal for Replace */}
+        {showConfirmation && (
+          <div className="absolute inset-0 flex items-center justify-center z-60">
+            <div className="absolute inset-0 bg-black/80" onClick={handleCancelConfirmation} />
+            <div className="relative">
+              <ImagePanel size="small">
+                <h3
+                  className="text-lg font-bold text-red-400 mb-4 text-center"
+                  style={{ textShadow: '2px 2px 0 #000' }}
+                >
+                  Are you sure?
+                </h3>
+                <p
+                  className="text-gray-300 text-sm mb-4 text-center"
+                  style={{ textShadow: '1px 1px 0 #000' }}
+                >
+                  This will permanently destroy your current character
+                  and all equipped items. This cannot be undone.
+                </p>
+                <div className="flex gap-4 justify-center">
+                  <ImageButton
+                    variant="secondary"
+                    size="sm"
+                    onClick={handleCancelConfirmation}
+                    disabled={isCreating}
+                  >
+                    Go Back
+                  </ImageButton>
+                  <ImageButton
+                    variant="danger"
+                    size="sm"
+                    onClick={handleCreate}
+                    disabled={isCreating}
+                  >
+                    {isCreating ? 'Replacing...' : 'Confirm Delete'}
+                  </ImageButton>
+                </div>
+              </ImagePanel>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
