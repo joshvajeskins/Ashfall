@@ -164,18 +164,21 @@ export class DungeonScene extends Phaser.Scene {
     // Always use static sprite - force exact tile size
     const playerTexture = `player-${playerClass}`;
     this.player = this.add.sprite(startX, startY, playerTexture)
+      .setDisplaySize(TILE_SIZE, TILE_SIZE)
       .setDepth(10);
-    this.scalePlayerToTile();
   }
 
-  private scalePlayerToTile(isAnimation = false): void {
-    // Get the current frame dimensions and scale to fit TILE_SIZE
-    const frame = this.player.frame;
-    // Animation sprites are smaller, so we need a larger scale multiplier
-    const animMultiplier = isAnimation ? 1.5 : 1;
-    const scaleX = (TILE_SIZE / frame.width) * animMultiplier;
-    const scaleY = (TILE_SIZE / frame.height) * animMultiplier;
-    this.player.setScale(scaleX, scaleY);
+  private scaleAnimationToTile(): void {
+    // Animation sprites need to match tile size and be offset up (feet at bottom)
+    this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
+    // Offset Y up by 25% of tile to keep character in box (feet at bottom of sprite)
+    this.player.setOrigin(0.5, 0.65);
+  }
+
+  private resetPlayerToStatic(): void {
+    // Reset to center origin for static sprite
+    this.player.setOrigin(0.5, 0.5);
+    this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
   }
 
   private spawnEnemies(): void {
@@ -385,26 +388,22 @@ export class DungeonScene extends Phaser.Scene {
     // Play move animation if available
     const playerClass = this.character.class.toLowerCase();
     const moveAnimKey = `${playerClass}-move`;
-    const scaleForAnimation = () => this.scalePlayerToTile(true);
 
     if (this.anims.exists(moveAnimKey)) {
       this.player.play(moveAnimKey);
-      // Re-scale after animation starts (animation frames need larger scale)
-      this.scalePlayerToTile(true);
-      // Keep scale consistent on each frame update
-      this.player.on('animationupdate', scaleForAnimation);
+      // Scale animation and offset Y (feet at bottom of sprite)
+      this.scaleAnimationToTile();
     }
 
     this.tweens.add({
       targets: this.player, x: newX, y: newY, duration: 150, ease: 'Linear',
       onComplete: () => {
         this.isMoving = false;
-        // Remove frame update listener
-        this.player.off('animationupdate', scaleForAnimation);
-        // Return to static sprite
+        // Stop animation and return to static sprite
+        this.player.stop();
         const playerTexture = `player-${playerClass}`;
         this.player.setTexture(playerTexture);
-        this.scalePlayerToTile(false);
+        this.resetPlayerToStatic();
         this.checkItemPickup();
       },
     });
