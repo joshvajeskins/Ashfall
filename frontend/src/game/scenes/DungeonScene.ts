@@ -39,9 +39,15 @@ export class DungeonScene extends Phaser.Scene {
   private currentRoom!: Room;
 
   // UI elements
+  private avatarFrame!: Phaser.GameObjects.Graphics;
+  private avatarSprite!: Phaser.GameObjects.Image;
+  private nameText!: Phaser.GameObjects.Text;
+  private healthBar!: Phaser.GameObjects.Graphics;
+  private healthText!: Phaser.GameObjects.Text;
+  private manaBar!: Phaser.GameObjects.Graphics;
+  private manaText!: Phaser.GameObjects.Text;
   private floorText!: Phaser.GameObjects.Text;
   private roomText!: Phaser.GameObjects.Text;
-  private healthBar!: Phaser.GameObjects.Graphics;
   private minimapGraphics!: Phaser.GameObjects.Graphics;
 
   // Effects
@@ -281,22 +287,66 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private createUI(): void {
-    this.floorText = this.add.text(10, 10, `Floor ${this.currentFloor}/5`, {
-      fontFamily: 'monospace', fontSize: '18px', color: '#ffffff',
+    // === LEFT SIDE: Character Info ===
+    const leftX = 10;
+    const avatarSize = 50;
+
+    // Avatar decoration frame
+    this.avatarFrame = this.add.graphics().setScrollFactor(0).setDepth(100);
+    this.avatarFrame.lineStyle(3, 0xffaa00, 1);
+    this.avatarFrame.strokeRoundedRect(leftX - 2, 8, avatarSize + 4, avatarSize + 4, 6);
+    this.avatarFrame.fillStyle(0x1a1a1a, 0.9);
+    this.avatarFrame.fillRoundedRect(leftX, 10, avatarSize, avatarSize, 4);
+
+    // Character avatar
+    const playerClass = this.character.class.toLowerCase();
+    this.avatarSprite = this.add.image(leftX + avatarSize / 2, 10 + avatarSize / 2, `player-${playerClass}`)
+      .setDisplaySize(avatarSize - 8, avatarSize - 8)
+      .setScrollFactor(0)
+      .setDepth(101);
+
+    // Character name
+    this.nameText = this.add.text(leftX + avatarSize + 10, 12, this.character.class, {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ffaa00', fontStyle: 'bold',
     }).setScrollFactor(0).setDepth(100);
 
-    this.roomText = this.add.text(10, 32, this.getRoomLabel(), {
-      fontFamily: 'monospace', fontSize: '14px', color: '#aaaaaa',
+    // Level text
+    this.add.text(leftX + avatarSize + 10, 28, `Lv. ${this.character.level}`, {
+      fontFamily: 'monospace', fontSize: '11px', color: '#aaaaaa',
     }).setScrollFactor(0).setDepth(100);
 
+    // Health bar
     this.healthBar = this.add.graphics().setScrollFactor(0).setDepth(100);
+    this.healthText = this.add.text(leftX + avatarSize + 10 + 75, 44, '', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#ffffff',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101);
     this.updateHealthBar();
 
+    // Mana bar
+    this.manaBar = this.add.graphics().setScrollFactor(0).setDepth(100);
+    this.manaText = this.add.text(leftX + avatarSize + 10 + 75, 58, '', {
+      fontFamily: 'monospace', fontSize: '10px', color: '#ffffff',
+    }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(101);
+    this.updateManaBar();
+
+    // === RIGHT SIDE: Floor & Room Info ===
+    const rightX = GAME_WIDTH - 10;
+
+    this.floorText = this.add.text(rightX, 10, `Floor ${this.currentFloor}/5`, {
+      fontFamily: 'monospace', fontSize: '16px', color: '#ffffff', fontStyle: 'bold',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+
+    this.roomText = this.add.text(rightX, 28, this.getRoomLabel(), {
+      fontFamily: 'monospace', fontSize: '12px', color: '#aaaaaa',
+    }).setOrigin(1, 0).setScrollFactor(0).setDepth(100);
+
+    // Minimap below floor info
     this.minimapGraphics = this.add.graphics().setScrollFactor(0).setDepth(100);
     this.updateMinimap();
 
+    // ESC hint at bottom right
     this.add.text(GAME_WIDTH - 10, GAME_HEIGHT - 10, 'ESC to exit', {
-      fontFamily: 'monospace', fontSize: '12px', color: '#666666',
+      fontFamily: 'monospace', fontSize: '10px', color: '#444444',
     }).setOrigin(1, 1).setScrollFactor(0).setDepth(100);
   }
 
@@ -309,25 +359,42 @@ export class DungeonScene extends Phaser.Scene {
 
   private updateHealthBar(): void {
     this.healthBar.clear();
-    const x = 10, y = 55, w = 150, h = 16;
-    this.healthBar.fillStyle(0x222222, 1).fillRect(x, y, w, h);
+    const x = 70, y = 44, w = 150, h = 12;
+    this.healthBar.fillStyle(0x222222, 1).fillRoundedRect(x, y, w, h, 3);
     const pct = this.character.health / this.character.maxHealth;
-    this.healthBar.fillStyle(pct > 0.3 ? 0x44aa44 : 0xaa4444, 1).fillRect(x, y, w * pct, h);
-    this.healthBar.lineStyle(2, 0x666666, 1).strokeRect(x, y, w, h);
+    if (pct > 0) {
+      this.healthBar.fillStyle(pct > 0.3 ? 0x44aa44 : 0xaa4444, 1).fillRoundedRect(x, y, w * pct, h, 3);
+    }
+    this.healthBar.lineStyle(1, 0x444444, 1).strokeRoundedRect(x, y, w, h, 3);
+    this.healthText.setText(`${this.character.health}/${this.character.maxHealth}`);
+  }
+
+  private updateManaBar(): void {
+    this.manaBar.clear();
+    const x = 70, y = 58, w = 150, h = 12;
+    this.manaBar.fillStyle(0x222222, 1).fillRoundedRect(x, y, w, h, 3);
+    const pct = this.character.mana / this.character.maxMana;
+    if (pct > 0) {
+      this.manaBar.fillStyle(0x4466dd, 1).fillRoundedRect(x, y, w * pct, h, 3);
+    }
+    this.manaBar.lineStyle(1, 0x444444, 1).strokeRoundedRect(x, y, w, h, 3);
+    this.manaText.setText(`${this.character.mana}/${this.character.maxMana}`);
   }
 
   private updateMinimap(): void {
     this.minimapGraphics.clear();
     const floor = this.dungeonLayout.floors[this.currentFloor - 1];
-    const baseX = GAME_WIDTH - 120, baseY = 10, size = 18, gap = 2;
+    const size = 16, gap = 2;
+    const mapWidth = 5 * (size + gap);
+    const baseX = GAME_WIDTH - 10 - mapWidth, baseY = 50;
 
     floor.rooms.forEach((room) => {
       const rx = baseX + room.x * (size + gap);
-      const ry = baseY + (room.y + 2) * (size + gap);
-      const color = room.id === this.currentRoomId ? 0xffff00 : room.cleared ? 0x44aa44 : 0x666666;
-      this.minimapGraphics.fillStyle(color, 1).fillRect(rx, ry, size, size);
+      const ry = baseY + room.y * (size + gap);
+      const color = room.id === this.currentRoomId ? 0xffff00 : room.cleared ? 0x44aa44 : 0x333333;
+      this.minimapGraphics.fillStyle(color, 1).fillRoundedRect(rx, ry, size, size, 2);
       if (room.id === floor.exitRoomId) {
-        this.minimapGraphics.lineStyle(2, 0xff0000, 1).strokeRect(rx, ry, size, size);
+        this.minimapGraphics.lineStyle(2, 0xff4444, 1).strokeRoundedRect(rx, ry, size, size, 2);
       }
     });
   }
