@@ -169,10 +169,11 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private scaleAnimationToTile(): void {
-    // Animation sprites need to match tile size and be offset up (feet at bottom)
-    this.player.setDisplaySize(TILE_SIZE, TILE_SIZE);
-    // Offset Y up by 25% of tile to keep character in box (feet at bottom of sprite)
-    this.player.setOrigin(0.5, 0.65);
+    // Animation sprites need to be larger and offset up (feet at bottom)
+    const animSize = TILE_SIZE * 1.4;
+    this.player.setDisplaySize(animSize, animSize);
+    // Offset Y up to keep character in box (feet at bottom of sprite)
+    this.player.setOrigin(0.5, 0.7);
   }
 
   private resetPlayerToStatic(): void {
