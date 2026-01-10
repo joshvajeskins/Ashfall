@@ -157,6 +157,52 @@ module ashfall::items {
         id
     }
 
+    /// Mint a weapon without requiring the counter reference - for other modules
+    public fun mint_weapon_external(
+        name: String,
+        rarity: Rarity,
+        base_damage: u64,
+        attack_speed: u64,
+        durability: u64,
+        dungeon_id: u64
+    ): Weapon acquires ItemIdCounter {
+        let counter = borrow_global_mut<ItemIdCounter>(@ashfall);
+        mint_weapon(counter, name, rarity, base_damage, attack_speed, durability, dungeon_id)
+    }
+
+    /// Mint armor without requiring the counter reference - for other modules
+    public fun mint_armor_external(
+        name: String,
+        rarity: Rarity,
+        defense: u64,
+        magic_resist: u64,
+        durability: u64
+    ): Armor acquires ItemIdCounter {
+        let counter = borrow_global_mut<ItemIdCounter>(@ashfall);
+        mint_armor(counter, name, rarity, defense, magic_resist, durability)
+    }
+
+    /// Mint accessory without requiring the counter reference - for other modules
+    public fun mint_accessory_external(
+        name: String,
+        rarity: Rarity,
+        stat_bonus: u64,
+        stat_type: u8
+    ): Accessory acquires ItemIdCounter {
+        let counter = borrow_global_mut<ItemIdCounter>(@ashfall);
+        mint_accessory(counter, name, rarity, stat_bonus, stat_type)
+    }
+
+    /// Mint consumable without requiring the counter reference - for other modules
+    public fun mint_consumable_external(
+        name: String,
+        consumable_type: u8,
+        power: u64
+    ): Consumable acquires ItemIdCounter {
+        let counter = borrow_global_mut<ItemIdCounter>(@ashfall);
+        mint_consumable(counter, name, consumable_type, power)
+    }
+
     // =============================================
     // DESTROY FUNCTIONS - Explicit destruction for permadeath
     // These are the ONLY way to remove items from existence

@@ -60,6 +60,17 @@ export const GAME_EVENTS = {
   COMBAT_DAMAGE: 'combat:damage',
   COMBAT_TURN_CHANGE: 'combat:turnChange',
 
+  // Combat transaction requests (Phaser -> React)
+  COMBAT_START_REQUEST: 'combat:startRequest',
+  PLAYER_ATTACK_REQUEST: 'combat:playerAttackRequest',
+  PLAYER_FLEE_REQUEST: 'combat:playerFleeRequest',
+  ENEMY_ATTACK_REQUEST: 'combat:enemyAttackRequest',
+
+  // Combat transaction responses (React -> Phaser)
+  COMBAT_TX_SUCCESS: 'combat:txSuccess',
+  COMBAT_TX_FAILED: 'combat:txFailed',
+  COMBAT_TX_PENDING: 'combat:txPending',
+
   // Dungeon events
   DUNGEON_ENTER: 'dungeon:enter',
   DUNGEON_EXIT: 'dungeon:exit',
@@ -74,6 +85,11 @@ export const GAME_EVENTS = {
   ITEM_DROP: 'item:drop',
   ITEM_EQUIP: 'item:equip',
   ITEM_UNEQUIP: 'item:unequip',
+
+  // Item pickup transaction requests (Phaser -> React)
+  ITEM_PICKUP_REQUEST: 'item:pickupRequest',
+  ITEM_PICKUP_TX_SUCCESS: 'item:pickupTxSuccess',
+  ITEM_PICKUP_TX_FAILED: 'item:pickupTxFailed',
 
   // Enemy events
   ENEMY_SPAWN: 'enemy:spawn',

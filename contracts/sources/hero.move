@@ -85,6 +85,21 @@ module ashfall::hero {
     }
 
     #[event]
+    struct CharacterDeleted has drop, store {
+        character_id: u64,
+        owner: address,
+        was_alive: bool
+    }
+
+    #[event]
+    struct CharacterReplaced has drop, store {
+        old_character_id: u64,
+        new_character_id: u64,
+        owner: address,
+        new_class: u8
+    }
+
+    #[event]
     struct LevelUp has drop, store {
         character_id: u64,
         new_level: u64,
@@ -206,6 +221,148 @@ module ashfall::hero {
             owner: addr,
             class: class_id
         });
+    }
+
+    /// Delete a character (works for both alive and dead characters).
+    /// Burns all equipped items. Allows player to create a new character.
+    public entry fun delete_character(account: &signer) acquires Character {
+        let addr = signer::address_of(account);
+        assert!(exists<Character>(addr), E_NO_CHARACTER);
+
+        let Character {
+            id,
+            owner: _,
+            class: _,
+            level: _,
+            experience: _,
+            health: _,
+            max_health: _,
+            mana: _,
+            max_mana: _,
+            strength: _,
+            agility: _,
+            intelligence: _,
+            weapon,
+            armor,
+            accessory,
+            current_dungeon: _,
+            current_floor: _,
+            is_alive
+        } = move_from<Character>(addr);
+
+        // Burn any equipped items
+        if (option::is_some(&weapon)) {
+            items::destroy_weapon(option::destroy_some(weapon));
+        } else {
+            option::destroy_none(weapon);
+        };
+
+        if (option::is_some(&armor)) {
+            items::destroy_armor(option::destroy_some(armor));
+        } else {
+            option::destroy_none(armor);
+        };
+
+        if (option::is_some(&accessory)) {
+            items::destroy_accessory(option::destroy_some(accessory));
+        } else {
+            option::destroy_none(accessory);
+        };
+
+        event::emit(CharacterDeleted {
+            character_id: id,
+            owner: addr,
+            was_alive: is_alive
+        });
+    }
+
+    /// Replace current character with a new one. class_id: 0=Warrior, 1=Rogue, 2=Mage
+    /// This deletes the current character (burning all items) and creates a new one.
+    public entry fun replace_character(account: &signer, class_id: u8) acquires Character, CharacterIdCounter {
+        let addr = signer::address_of(account);
+        assert!(class_id <= 2, E_INVALID_CLASS);
+
+        // If character exists, delete it first
+        if (exists<Character>(addr)) {
+            let Character {
+                id: old_id,
+                owner: _,
+                class: _,
+                level: _,
+                experience: _,
+                health: _,
+                max_health: _,
+                mana: _,
+                max_mana: _,
+                strength: _,
+                agility: _,
+                intelligence: _,
+                weapon,
+                armor,
+                accessory,
+                current_dungeon: _,
+                current_floor: _,
+                is_alive: _
+            } = move_from<Character>(addr);
+
+            // Burn any equipped items
+            if (option::is_some(&weapon)) {
+                items::destroy_weapon(option::destroy_some(weapon));
+            } else {
+                option::destroy_none(weapon);
+            };
+
+            if (option::is_some(&armor)) {
+                items::destroy_armor(option::destroy_some(armor));
+            } else {
+                option::destroy_none(armor);
+            };
+
+            if (option::is_some(&accessory)) {
+                items::destroy_accessory(option::destroy_some(accessory));
+            } else {
+                option::destroy_none(accessory);
+            };
+
+            // Get new ID and create new character
+            let counter = borrow_global_mut<CharacterIdCounter>(@ashfall);
+            let new_id = counter.next_id;
+            counter.next_id = counter.next_id + 1;
+
+            let class = u8_to_class(class_id);
+            let (max_health, max_mana, strength, agility, intelligence) = get_class_stats(&class);
+
+            move_to(account, Character {
+                id: new_id,
+                owner: addr,
+                class,
+                level: 1,
+                experience: 0,
+                health: max_health,
+                mana: max_mana,
+                max_health,
+                max_mana,
+                strength,
+                agility,
+                intelligence,
+                weapon: option::none(),
+                armor: option::none(),
+                accessory: option::none(),
+                current_dungeon: option::none(),
+                current_floor: 0,
+                is_alive: true
+            });
+
+            event::emit(CharacterReplaced {
+                old_character_id: old_id,
+                new_character_id: new_id,
+                owner: addr,
+                new_class: class_id
+            });
+        } else {
+            // No existing character, just create new one
+            create_character(account, class_id);
+        };
     }
 
     fun get_class_stats(class: &Class): (u64, u64, u64, u64, u64) {
@@ -378,6 +535,23 @@ module ashfall::hero {
     public fun kill_player_character(player: address) acquires Character {
         let character = borrow_global_mut<Character>(player);
         character_death(character);
+    }
+
+    /// Apply combat damage to a player - callable by combat module
+    /// Returns (new_health, is_dead)
+    public fun take_combat_damage_to_player(player: address, damage: u64): (u64, bool) acquires Character {
+        let character = borrow_global_mut<Character>(player);
+        let armor_def = get_armor_defense(character);
+        let effective_damage = if (damage > armor_def) { damage - armor_def } else { 1 };
+
+        if (character.health <= effective_damage) {
+            character.health = 0;
+            character_death(character);
+            (0, true)
+        } else {
+            character.health = character.health - effective_damage;
+            (character.health, false)
+        }
     }
 
     fun level_up(character: &mut Character) {

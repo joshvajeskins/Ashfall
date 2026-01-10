@@ -1,15 +1,49 @@
 module ashfall::loot {
+    use std::signer;
     use std::string;
-    use ashfall::items::{Self, Rarity, Weapon, Armor, Accessory, ItemIdCounter};
+    use std::vector;
+    use aptos_framework::event;
+    use ashfall::items::{Self, Rarity, Weapon, Armor, Accessory, Consumable, ItemIdCounter};
 
     // =============================================
     // ashfall::loot
     //
     // Loot generation with floor-based rarity scaling.
     // Higher floors = better drop chances.
+    // Pickup functions: Player wallet + gas sponsor.
     // =============================================
 
     const E_INVALID_DROP_TYPE: u64 = 1;
+
+    // Item type constants
+    const ITEM_TYPE_WEAPON: u8 = 0;
+    const ITEM_TYPE_ARMOR: u8 = 1;
+    const ITEM_TYPE_ACCESSORY: u8 = 2;
+    const ITEM_TYPE_CONSUMABLE: u8 = 3;
+
+    // =============================================
+    // PLAYER INVENTORY - Stores picked up items
+    // =============================================
+
+    struct PlayerInventory has key {
+        weapons: vector<Weapon>,
+        armors: vector<Armor>,
+        accessories: vector<Accessory>,
+        consumables: vector<Consumable>
+    }
+
+    // =============================================
+    // EVENTS
+    // =============================================
+
+    #[event]
+    struct LootPickedUp has drop, store {
+        player: address,
+        item_type: u8,
+        item_id: u64,
+        rarity: u8,
+        floor: u64
+    }
 
     // Item types for drop selection
     const ITEM_WEAPON: u64 = 0;
@@ -303,5 +337,242 @@ module ashfall::loot {
         };
 
         (type1, type2)
+    }
+
+    // =============================================
+    // PICKUP ENTRY FUNCTIONS - Player wallet + gas sponsor
+    // =============================================
+
+    /// Initialize player inventory
+    public entry fun initialize_inventory(account: &signer) {
+        let addr = signer::address_of(account);
+        if (!exists<PlayerInventory>(addr)) {
+            move_to(account, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+    }
+
+    /// Pick up a weapon - player signs, gas sponsored
+    public entry fun pickup_weapon(
+        player_signer: &signer,
+        floor: u64,
+        enemy_tier: u64,
+        seed: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        // Ensure inventory exists
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        // Calculate weapon stats
+        let rarity = determine_rarity_by_floor(floor, seed);
+        let rarity_mult = get_rarity_multiplier(&rarity);
+        let base_damage = 5 + (floor * 3) + (enemy_tier * 2);
+        let final_damage = base_damage * rarity_mult / 10;
+        let name = get_weapon_name(floor, seed);
+        let attack_speed = 10 + (seed % 5);
+        let durability = 50 + (rarity_mult * 10);
+
+        // Mint weapon using external function
+        let weapon = items::mint_weapon_external(
+            name, rarity, final_damage, attack_speed, durability, 1
+        );
+        let item_id = items::weapon_id(&weapon);
+        let rarity_u8 = items::rarity_to_u8(items::weapon_rarity(&weapon));
+
+        // Add to player inventory
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.weapons, weapon);
+
+        event::emit(LootPickedUp {
+            player,
+            item_type: ITEM_TYPE_WEAPON,
+            item_id,
+            rarity: rarity_u8,
+            floor
+        });
+
+        items::emit_item_picked_up(player, item_id);
+    }
+
+    /// Pick up armor - player signs, gas sponsored
+    public entry fun pickup_armor(
+        player_signer: &signer,
+        floor: u64,
+        enemy_tier: u64,
+        seed: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        // Calculate armor stats
+        let rarity = determine_rarity_by_floor(floor, seed);
+        let rarity_mult = get_rarity_multiplier(&rarity);
+        let base_defense = 3 + (floor * 2) + enemy_tier;
+        let final_defense = base_defense * rarity_mult / 10;
+        let magic_resist = final_defense / 2;
+        let name = get_armor_name(floor, seed);
+        let durability = 60 + (rarity_mult * 10);
+
+        // Mint armor using external function
+        let armor = items::mint_armor_external(
+            name, rarity, final_defense, magic_resist, durability
+        );
+        let item_id = items::armor_id(&armor);
+        let rarity_u8 = items::rarity_to_u8(items::armor_rarity(&armor));
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.armors, armor);
+
+        event::emit(LootPickedUp {
+            player,
+            item_type: ITEM_TYPE_ARMOR,
+            item_id,
+            rarity: rarity_u8,
+            floor
+        });
+
+        items::emit_item_picked_up(player, item_id);
+    }
+
+    /// Pick up accessory - player signs, gas sponsored
+    public entry fun pickup_accessory(
+        player_signer: &signer,
+        floor: u64,
+        enemy_tier: u64,
+        seed: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        // Calculate accessory stats
+        let rarity = determine_rarity_by_floor(floor, seed);
+        let rarity_mult = get_rarity_multiplier(&rarity);
+        let base_bonus = 2 + floor + enemy_tier;
+        let final_bonus = base_bonus * rarity_mult / 10;
+        let name = get_accessory_name(floor, seed);
+        let stat_type = ((seed / 100) % 3) as u8;
+
+        // Mint accessory using external function
+        let accessory = items::mint_accessory_external(
+            name, rarity, final_bonus, stat_type
+        );
+        let item_id = items::accessory_id(&accessory);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.accessories, accessory);
+
+        event::emit(LootPickedUp {
+            player,
+            item_type: ITEM_TYPE_ACCESSORY,
+            item_id,
+            rarity: 0,
+            floor
+        });
+
+        items::emit_item_picked_up(player, item_id);
+    }
+
+    /// Pick up consumable (potion) - player signs, gas sponsored
+    public entry fun pickup_consumable(
+        player_signer: &signer,
+        floor: u64,
+        consumable_type: u8, // 0=health, 1=mana
+        power: u64
+    ) acquires PlayerInventory {
+        let player = signer::address_of(player_signer);
+
+        if (!exists<PlayerInventory>(player)) {
+            move_to(player_signer, PlayerInventory {
+                weapons: vector::empty(),
+                armors: vector::empty(),
+                accessories: vector::empty(),
+                consumables: vector::empty()
+            });
+        };
+
+        let name = if (consumable_type == 0) {
+            string::utf8(b"Health Potion")
+        } else {
+            string::utf8(b"Mana Potion")
+        };
+
+        // Mint consumable using external function
+        let consumable = items::mint_consumable_external(name, consumable_type, power);
+
+        let inventory = borrow_global_mut<PlayerInventory>(player);
+        vector::push_back(&mut inventory.consumables, consumable);
+
+        event::emit(LootPickedUp {
+            player,
+            item_type: ITEM_TYPE_CONSUMABLE,
+            item_id: 0,
+            rarity: 0,
+            floor
+        });
+    }
+
+    // =============================================
+    // VIEW FUNCTIONS
+    // =============================================
+
+    #[view]
+    public fun get_weapon_count(player: address): u64 acquires PlayerInventory {
+        if (!exists<PlayerInventory>(player)) { return 0 };
+        let inventory = borrow_global<PlayerInventory>(player);
+        vector::length(&inventory.weapons)
+    }
+
+    #[view]
+    public fun get_armor_count(player: address): u64 acquires PlayerInventory {
+        if (!exists<PlayerInventory>(player)) { return 0 };
+        let inventory = borrow_global<PlayerInventory>(player);
+        vector::length(&inventory.armors)
+    }
+
+    #[view]
+    public fun get_accessory_count(player: address): u64 acquires PlayerInventory {
+        if (!exists<PlayerInventory>(player)) { return 0 };
+        let inventory = borrow_global<PlayerInventory>(player);
+        vector::length(&inventory.accessories)
+    }
+
+    #[view]
+    public fun get_consumable_count(player: address): u64 acquires PlayerInventory {
+        if (!exists<PlayerInventory>(player)) { return 0 };
+        let inventory = borrow_global<PlayerInventory>(player);
+        vector::length(&inventory.consumables)
+    }
+
+    #[view]
+    public fun has_inventory(player: address): bool {
+        exists<PlayerInventory>(player)
     }
 }

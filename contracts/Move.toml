@@ -7,6 +7,7 @@ authors = []
 ashfall = "_"
 
 [dev-addresses]
+ashfall = "0x2b633f672b485166e89bb90903962d5ad26bbf70ce079ed484bae518d89d2dc5"
 
 [dependencies.AptosFramework]
 git = "https://github.com/movementlabsxyz/aptos-core.git"

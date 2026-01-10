@@ -11,6 +11,7 @@ import { VictoryScene } from '@/game/scenes/VictoryScene';
 import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 import { useGameStore } from '@/stores/gameStore';
 import { BossWarning } from '@/components/ui/BossWarning';
+import { CombatBridge } from './CombatBridge';
 
 // Module-level singleton to prevent multiple Phaser instances (React StrictMode fix)
 let globalGameInstance: Phaser.Game | null = null;
@@ -134,13 +135,15 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
   }, [enterDungeon, exitDungeon, addToInventory, die]);
 
   return (
-    <div className="relative">
+    <div className="relative w-full h-full flex-1 flex items-center justify-center bg-black">
       <div
         ref={containerRef}
-        className="game-container rounded-lg overflow-hidden border-2 border-gray-800"
-        style={{ width: 800, height: 600 }}
+        id="game-container"
+        className="game-container"
+        style={{ width: '100%', height: '100%' }}
       />
       <BossWarning />
+      <CombatBridge />
     </div>
   );
 }
