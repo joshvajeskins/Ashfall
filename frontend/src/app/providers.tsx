@@ -2,6 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { ModalContainer } from '@/components/modals';
+import { TransactionToast } from '@/components/ui/TransactionToast';
 
 const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID || '';
 
@@ -38,6 +39,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <>
         {children}
         <ModalContainer />
+        <TransactionToast />
       </>
     );
   }
@@ -46,6 +48,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProviderWrapper>
       {children}
       <ModalContainer />
+      <TransactionToast />
     </PrivyProviderWrapper>
   );
 }
