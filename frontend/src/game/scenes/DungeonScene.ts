@@ -260,8 +260,19 @@ export class DungeonScene extends Phaser.Scene {
     // Enemy types vary by floor
     const enemyTypes = this.getEnemyTypesForFloor();
     this.currentRoom.enemies.forEach((enemy, i) => {
-      const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
-      const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
+      // Use persisted position if available, otherwise generate and save new position
+      // This prevents enemies from respawning at new locations after combat
+      let x: number, y: number;
+      if (enemy.x !== undefined && enemy.y !== undefined) {
+        x = enemy.x;
+        y = enemy.y;
+      } else {
+        x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
+        y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
+        // Persist position to enemy data for future spawns
+        enemy.x = x;
+        enemy.y = y;
+      }
 
       // Determine visual enemy type from the enemy's name (not spawn index!)
       // This ensures correct visuals even after enemies are removed from the array
@@ -348,8 +359,18 @@ export class DungeonScene extends Phaser.Scene {
     // Spawn items for ALL room types that have loot (not just treasure rooms)
     // Combat rooms can have loot (40% chance), rest rooms can have loot-only (40% chance)
     this.currentRoom.loot.forEach((item) => {
-      const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
-      const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
+      // Use persisted position if available, otherwise generate and save new position
+      let x: number, y: number;
+      if (item.x !== undefined && item.y !== undefined) {
+        x = item.x;
+        y = item.y;
+      } else {
+        x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
+        y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
+        // Persist position to item data for future spawns
+        item.x = x;
+        item.y = y;
+      }
       const key = this.getItemSpriteKey(item);
       const sprite = this.add.image(x, y, key).setScale(ITEM_SCALE).setDepth(5).setData('itemData', item);
       this.items.push(sprite);
