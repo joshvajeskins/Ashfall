@@ -118,6 +118,16 @@ export class DungeonScene extends Phaser.Scene {
     this.spawnEnemies();
     this.spawnItems();
     this.createDoors();
+
+    // Safety check: Auto-clear rooms that have no spawnable content
+    // This prevents getting stuck in rooms where data says "not cleared" but nothing spawned
+    if (!this.currentRoom.cleared && this.currentRoom.type !== 'start') {
+      const hasNoContent = this.enemies.length === 0 && this.items.length === 0;
+      if (hasNoContent) {
+        console.warn(`[DungeonScene] Room ${this.currentRoomId} has no content but was not cleared. Auto-clearing.`);
+        this.markRoomCleared();
+      }
+    }
   }
 
   private renderRoom(): void {
@@ -320,7 +330,11 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private spawnItems(): void {
-    if (this.currentRoom.cleared || this.currentRoom.type !== 'treasure') return;
+    // Skip if room is cleared or has no loot
+    if (this.currentRoom.cleared || this.currentRoom.loot.length === 0) return;
+
+    // Spawn items for ALL room types that have loot (not just treasure rooms)
+    // Combat rooms can have loot (40% chance), rest rooms can have loot-only (40% chance)
     this.currentRoom.loot.forEach((item) => {
       const x = Phaser.Math.Between(2, this.currentRoom.width - 3) * TILE_SIZE + TILE_SIZE / 2;
       const y = Phaser.Math.Between(2, this.currentRoom.height - 3) * TILE_SIZE + TILE_SIZE / 2;
@@ -555,9 +569,10 @@ export class DungeonScene extends Phaser.Scene {
       // Show appropriate message based on what's blocking progress
       if (this.enemies.length > 0) {
         this.showBlockedMessage(`Defeat all enemies first! (${this.enemies.length} remaining)`);
-      } else if (this.items.length > 0 && this.currentRoom.type === 'treasure') {
+      } else if (this.items.length > 0) {
         this.showBlockedMessage(`Collect all items first! (${this.items.length} remaining)`);
       } else {
+        // This shouldn't happen with the safety check, but just in case
         this.showBlockedMessage('Clear the room before leaving!');
       }
       return;
@@ -662,7 +677,10 @@ export class DungeonScene extends Phaser.Scene {
         this.items.splice(i, 1);
       }
     }
-    if (this.currentRoom.type === 'treasure' && this.items.length === 0) this.markRoomCleared();
+    // Mark room as cleared when all items collected AND no enemies remain
+    if (this.items.length === 0 && this.enemies.length === 0 && this.currentRoom.type !== 'start') {
+      this.markRoomCleared();
+    }
   }
 
   private markRoomCleared(): void {
@@ -707,7 +725,10 @@ export class DungeonScene extends Phaser.Scene {
 
       enemy.sprite.destroy();
       this.enemies.splice(idx, 1);
-      if (this.enemies.length === 0 && this.currentRoom.type !== 'start') this.markRoomCleared();
+      // Only mark cleared when ALL enemies AND items are collected
+      if (this.enemies.length === 0 && this.items.length === 0 && this.currentRoom.type !== 'start') {
+        this.markRoomCleared();
+      }
     }
   }
 
