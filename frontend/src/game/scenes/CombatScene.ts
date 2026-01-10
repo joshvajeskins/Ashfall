@@ -72,6 +72,10 @@ export class CombatScene extends Phaser.Scene {
   private enemyIntentText!: Phaser.GameObjects.Text;
   private isPlayerDefending = false;
 
+  // Sprite size constants
+  private readonly STATIC_SIZE = 140;
+  private readonly BOSS_STATIC_SIZE = 180;
+
   // Transaction event handlers
   private txSuccessHandler!: (...args: unknown[]) => void;
   private txFailedHandler!: (...args: unknown[]) => void;
@@ -87,6 +91,9 @@ export class CombatScene extends Phaser.Scene {
     this.currentTurn = 'player';
     this.isAnimating = false;
     this.isWaitingForTx = false;
+    // Reset arrays to clear references from previous combat
+    this.actionButtons = [];
+    this.combatLog = [];
   }
 
   create(): void {
@@ -212,19 +219,19 @@ export class CombatScene extends Phaser.Scene {
   }
 
   // Combat positions based on canvas size
-  private get PLAYER_X() { return GAME_WIDTH * 0.25; }
-  private get ENEMY_X() { return GAME_WIDTH * 0.75; }
+  private get PLAYER_X() { return GAME_WIDTH * 0.35; }
+  private get ENEMY_X() { return GAME_WIDTH * 0.65; }
   private get COMBATANT_Y() { return GAME_HEIGHT * 0.5; }
   private get LABEL_Y() { return GAME_HEIGHT * 0.28; }
 
   private createCombatants(): void {
     const playerClass = this.character.class.toLowerCase();
-    const STATIC_SCALE = 0.22;
-    const BOSS_STATIC_SCALE = 0.32;
 
     // Always use static sprite for idle state
     const playerTexture = `player-${playerClass}`;
-    this.playerSprite = this.add.sprite(this.PLAYER_X, this.COMBATANT_Y, playerTexture).setScale(STATIC_SCALE).setDepth(10);
+    this.playerSprite = this.add.sprite(this.PLAYER_X, this.COMBATANT_Y, playerTexture)
+      .setDisplaySize(this.STATIC_SIZE, this.STATIC_SIZE)
+      .setDepth(10);
 
     const enemyType = this.getEnemyType();
     // Check if enemy has combat animations (attack, hit, death) - not idle
@@ -232,8 +239,10 @@ export class CombatScene extends Phaser.Scene {
 
     // Always use static sprite for idle state
     const enemyTexture = this.getEnemyTexture();
-    const scale = this.enemy.isBoss ? BOSS_STATIC_SCALE : STATIC_SCALE;
-    this.enemySprite = this.add.sprite(this.ENEMY_X, this.COMBATANT_Y, enemyTexture).setScale(scale).setDepth(10);
+    const size = this.enemy.isBoss ? this.BOSS_STATIC_SIZE : this.STATIC_SIZE;
+    this.enemySprite = this.add.sprite(this.ENEMY_X, this.COMBATANT_Y, enemyTexture)
+      .setDisplaySize(size, size)
+      .setDepth(10);
 
     this.add.text(this.PLAYER_X, this.LABEL_Y, this.character.class, {
       fontFamily: 'monospace', fontSize: '18px', color: '#4488ff'
@@ -267,6 +276,49 @@ export class CombatScene extends Phaser.Scene {
     if (name.includes('skeleton')) return 'enemy-skeleton';
     if (name.includes('goblin')) return 'enemy-goblin';
     return 'enemy-skeleton';
+  }
+
+  // Animation scale adjustments (animation spritesheets have different frame sizes)
+  private scalePlayerForAnimation(): void {
+    const playerClass = this.character.class.toLowerCase();
+    const classConfig: Record<string, { scale: number; originY: number }> = {
+      warrior: { scale: 6.0, originY: 0.6 },
+      mage: { scale: 6.0, originY: 0.5 },
+      rogue: { scale: 6.0, originY: 0.5 },
+    };
+    const config = classConfig[playerClass] ?? { scale: 6.0, originY: 0.5 };
+    const animSize = this.STATIC_SIZE * config.scale;
+    this.playerSprite.setDisplaySize(animSize, animSize);
+    this.playerSprite.setOrigin(0.5, config.originY);
+  }
+
+  private resetPlayerToStatic(): void {
+    this.playerSprite.setOrigin(0.5, 0.5);
+    this.playerSprite.setDisplaySize(this.STATIC_SIZE, this.STATIC_SIZE);
+  }
+
+  private scaleEnemyForAnimation(): void {
+    const enemyType = this.getEnemyType();
+    const enemyConfig: Record<string, { scale: number; originY: number }> = {
+      skeleton: { scale: 6.0, originY: 0.5 },
+      zombie: { scale: 6.0, originY: 0.5 },
+      ghoul: { scale: 6.0, originY: 0.5 },
+      vampire: { scale: 6.0, originY: 0.5 },
+      lich: { scale: 6.0, originY: 0.5 },
+      goblin: { scale: 6.0, originY: 0.5 },
+      boss: { scale: 6.0, originY: 0.55 },
+    };
+    const config = enemyConfig[enemyType] ?? { scale: 6.0, originY: 0.5 };
+    const baseSize = this.enemy.isBoss ? this.BOSS_STATIC_SIZE : this.STATIC_SIZE;
+    const animSize = baseSize * config.scale;
+    this.enemySprite.setDisplaySize(animSize, animSize);
+    this.enemySprite.setOrigin(0.5, config.originY);
+  }
+
+  private resetEnemyToStatic(): void {
+    const size = this.enemy.isBoss ? this.BOSS_STATIC_SIZE : this.STATIC_SIZE;
+    this.enemySprite.setOrigin(0.5, 0.5);
+    this.enemySprite.setDisplaySize(size, size);
   }
 
   private createHealthBars(): void {
@@ -516,6 +568,7 @@ export class CombatScene extends Phaser.Scene {
     const attackAnim = result.isCrit ? `${playerClass}-critical` : `${playerClass}-attack`;
 
     if (this.anims.exists(attackAnim)) {
+      this.scalePlayerForAnimation();
       this.playerSprite.play(attackAnim);
       this.playerSprite.once('animationcomplete', () => this.onPlayerAttackHit(result));
     } else {
@@ -529,8 +582,12 @@ export class CombatScene extends Phaser.Scene {
     const enemyType = this.getEnemyType();
     const enemyHitAnim = `${enemyType}-hit`;
     if (this.enemyHasAnimations && this.anims.exists(enemyHitAnim)) {
+      this.scaleEnemyForAnimation();
       this.enemySprite.play(enemyHitAnim);
-      this.enemySprite.once('animationcomplete', () => this.enemySprite.setTexture(this.getEnemyTexture()));
+      this.enemySprite.once('animationcomplete', () => {
+        this.enemySprite.setTexture(this.getEnemyTexture());
+        this.resetEnemyToStatic();
+      });
     } else {
       this.shakeSprite(this.enemySprite);
     }
@@ -546,6 +603,7 @@ export class CombatScene extends Phaser.Scene {
       const playerClass = this.character.class.toLowerCase();
       // Reset to static texture after attack animation
       this.playerSprite.setTexture(`player-${playerClass}`);
+      this.resetPlayerToStatic();
       this.updateHealthBars();
       this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
     });
@@ -589,6 +647,7 @@ export class CombatScene extends Phaser.Scene {
     const attackAnim = `${playerClass}-attack`;
 
     if (this.anims.exists(attackAnim)) {
+      this.scalePlayerForAnimation();
       this.playerSprite.play(attackAnim);
       this.playerSprite.once('animationcomplete', () => this.onHeavyAttackHit(heavyDamage, result.isCrit));
     } else {
@@ -605,6 +664,7 @@ export class CombatScene extends Phaser.Scene {
       const playerClass = this.character.class.toLowerCase();
       // Reset to static texture after attack animation
       this.playerSprite.setTexture(`player-${playerClass}`);
+      this.resetPlayerToStatic();
       this.updateHealthBars();
       this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
     });
@@ -758,6 +818,7 @@ export class CombatScene extends Phaser.Scene {
     const enemyAttackAnim = `${enemyType}-attack`;
 
     if (this.enemyHasAnimations && this.anims.exists(enemyAttackAnim)) {
+      this.scaleEnemyForAnimation();
       this.enemySprite.play(enemyAttackAnim);
       this.enemySprite.once('animationcomplete', () => this.onEnemyAttackHit({ ...result, damage: finalDamage }));
     } else {
@@ -771,9 +832,13 @@ export class CombatScene extends Phaser.Scene {
     const playerClass = this.character.class.toLowerCase();
     const playerHitAnim = `${playerClass}-hit`;
     if (this.anims.exists(playerHitAnim)) {
+      this.scalePlayerForAnimation();
       this.playerSprite.play(playerHitAnim);
       this.playerSprite.once('animationcomplete', () => {
-        if (this.character.health > 0) this.playerSprite.setTexture(`player-${playerClass}`);
+        if (this.character.health > 0) {
+          this.playerSprite.setTexture(`player-${playerClass}`);
+          this.resetPlayerToStatic();
+        }
       });
     } else {
       this.shakeSprite(this.playerSprite);
@@ -786,6 +851,7 @@ export class CombatScene extends Phaser.Scene {
     this.showDamageNumber(200, 280, result.damage, false, false, () => {
       // Reset enemy to static texture after attack animation
       this.enemySprite.setTexture(this.getEnemyTexture());
+      this.resetEnemyToStatic();
       this.updateHealthBars();
       if (this.character.health <= this.character.maxHealth * 0.3) {
         this.screenEffects.lowHealthVignette();
@@ -875,6 +941,7 @@ export class CombatScene extends Phaser.Scene {
     };
 
     if (this.enemyHasAnimations && this.anims.exists(deathAnim)) {
+      this.scaleEnemyForAnimation();
       this.enemySprite.play(deathAnim);
       this.enemySprite.once('animationcomplete', onDeathComplete);
     } else {
@@ -926,6 +993,7 @@ export class CombatScene extends Phaser.Scene {
     };
 
     if (this.anims.exists(deathAnim)) {
+      this.scalePlayerForAnimation();
       this.playerSprite.play(deathAnim);
       this.playerSprite.once('animationcomplete', onDeathComplete);
     } else {
@@ -990,18 +1058,16 @@ export class CombatScene extends Phaser.Scene {
     if (!this.textures.exists('vfx-magic')) return;
 
     const vfx = this.add.image(x, y, 'vfx-magic')
-      .setDisplaySize(120, 120)
+      .setDisplaySize(180, 180)
       .setTint(tint)
-      .setAlpha(0.8)
+      .setAlpha(1)
       .setDepth(50);
 
-    // Animate: scale up and fade out with rotation
+    // Animate: scale up then destroy
     this.tweens.add({
       targets: vfx,
       scaleX: 1.5,
       scaleY: 1.5,
-      alpha: 0,
-      angle: 180,
       duration: 600,
       ease: 'Power2',
       onComplete: () => vfx.destroy()
