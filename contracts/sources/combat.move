@@ -3,6 +3,7 @@ module ashfall::combat {
     use std::vector;
     use aptos_framework::event;
     use aptos_framework::timestamp;
+    use aptos_std::smart_table::{Self, SmartTable};
     use ashfall::enemies::{Self, Enemy};
     use ashfall::hero;
 
@@ -48,10 +49,18 @@ module ashfall::combat {
         authorized_servers: vector<address>
     }
 
+    /// Registry to store all combat states, indexed by player address
+    struct CombatRegistry has key {
+        combats: SmartTable<address, CombatState>
+    }
+
     fun init_module(account: &signer) {
         let deployer = signer::address_of(account);
         move_to(account, ServerConfig {
             authorized_servers: vector[deployer]
+        });
+        move_to(account, CombatRegistry {
+            combats: smart_table::new()
         });
     }
 
@@ -62,16 +71,26 @@ module ashfall::combat {
         vector::push_back(&mut config.authorized_servers, server);
     }
 
+    /// Initialize the combat registry. Call once after upgrade.
+    public entry fun init_registry(admin: &signer) {
+        let admin_addr = signer::address_of(admin);
+        assert!(admin_addr == @ashfall, E_UNAUTHORIZED);
+        assert!(!exists<CombatRegistry>(@ashfall), E_ALREADY_IN_COMBAT);
+        move_to(admin, CombatRegistry {
+            combats: smart_table::new()
+        });
+    }
+
     fun is_authorized_server(addr: address): bool acquires ServerConfig {
         let config = borrow_global<ServerConfig>(@ashfall);
         vector::contains(&config.authorized_servers, &addr)
     }
 
     // =============================================
-    // COMBAT STATE - Stored per player
+    // COMBAT STATE - Stored in registry at @ashfall
     // =============================================
 
-    struct CombatState has key {
+    struct CombatState has key, store, drop {
         player: address,
         enemy: Enemy,
         current_turn: u8,
@@ -171,7 +190,7 @@ module ashfall::combat {
         player: address,
         enemy_type: u8,
         floor: u64
-    ) acquires ServerConfig, CombatState {
+    ) acquires ServerConfig, CombatRegistry {
         let server_addr = signer::address_of(server);
         assert!(is_authorized_server(server_addr), E_UNAUTHORIZED);
         assert!(hero::character_exists(player), E_NO_CHARACTER);
@@ -185,8 +204,10 @@ module ashfall::combat {
         // Generate initial enemy intent (seed from timestamp)
         let initial_intent = generate_enemy_intent(now);
 
-        if (exists<CombatState>(player)) {
-            let combat = borrow_global_mut<CombatState>(player);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+
+        if (smart_table::contains(&registry.combats, player)) {
+            let combat = smart_table::borrow_mut(&mut registry.combats, player);
             assert!(!combat.is_active, E_ALREADY_IN_COMBAT);
 
             // Reuse existing storage
@@ -204,7 +225,7 @@ module ashfall::combat {
             combat.enemy_is_defending = false;
             combat.enemy_next_intent = initial_intent;
         } else {
-            move_to(server, CombatState {
+            smart_table::add(&mut registry.combats, player, CombatState {
                 player,
                 enemy,
                 current_turn: TURN_PLAYER,
@@ -251,11 +272,12 @@ module ashfall::combat {
     public entry fun player_attack(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatState {
+    ) acquires CombatRegistry {
         let player = signer::address_of(player_signer);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
 
@@ -317,12 +339,13 @@ module ashfall::combat {
         server: &signer,
         player: address,
         seed: u64
-    ) acquires ServerConfig, CombatState {
+    ) acquires ServerConfig, CombatRegistry {
         let server_addr = signer::address_of(server);
         assert!(is_authorized_server(server_addr), E_UNAUTHORIZED);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_ENEMY, E_NOT_ENEMY_TURN);
 
@@ -408,11 +431,12 @@ module ashfall::combat {
     public entry fun flee_combat(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatState {
+    ) acquires CombatRegistry {
         let player = signer::address_of(player_signer);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
 
@@ -446,11 +470,12 @@ module ashfall::combat {
     /// Player defends, reducing next enemy attack damage by 50%.
     public entry fun player_defend(
         player_signer: &signer
-    ) acquires CombatState {
+    ) acquires CombatRegistry {
         let player = signer::address_of(player_signer);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
 
@@ -469,11 +494,12 @@ module ashfall::combat {
     public entry fun player_heavy_attack(
         player_signer: &signer,
         seed: u64
-    ) acquires CombatState {
+    ) acquires CombatRegistry {
         let player = signer::address_of(player_signer);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
 
@@ -546,11 +572,12 @@ module ashfall::combat {
     /// Player heals for 30% of max HP, costs 30 mana.
     public entry fun player_heal(
         player_signer: &signer
-    ) acquires CombatState {
+    ) acquires CombatRegistry {
         let player = signer::address_of(player_signer);
-        assert!(exists<CombatState>(player), E_NOT_IN_COMBAT);
+        let registry = borrow_global_mut<CombatRegistry>(@ashfall);
+        assert!(smart_table::contains(&registry.combats, player), E_NOT_IN_COMBAT);
 
-        let combat = borrow_global_mut<CombatState>(player);
+        let combat = smart_table::borrow_mut(&mut registry.combats, player);
         assert!(combat.is_active, E_COMBAT_ENDED);
         assert!(combat.current_turn == TURN_PLAYER, E_NOT_PLAYER_TURN);
 
@@ -593,15 +620,17 @@ module ashfall::combat {
     // =============================================
 
     #[view]
-    public fun is_in_combat(player: address): bool acquires CombatState {
-        if (!exists<CombatState>(player)) { return false };
-        let combat = borrow_global<CombatState>(player);
+    public fun is_in_combat(player: address): bool acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        if (!smart_table::contains(&registry.combats, player)) { return false };
+        let combat = smart_table::borrow(&registry.combats, player);
         combat.is_active
     }
 
     #[view]
-    public fun get_combat_state(player: address): (u64, u64, u8, bool) acquires CombatState {
-        let combat = borrow_global<CombatState>(player);
+    public fun get_combat_state(player: address): (u64, u64, u8, bool) acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        let combat = smart_table::borrow(&registry.combats, player);
         (
             enemies::get_health(&combat.enemy),
             enemies::get_max_health(&combat.enemy),
@@ -611,26 +640,30 @@ module ashfall::combat {
     }
 
     #[view]
-    public fun get_last_combat_result(player: address): (u64, u64, bool) acquires CombatState {
-        let combat = borrow_global<CombatState>(player);
+    public fun get_last_combat_result(player: address): (u64, u64, bool) acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        let combat = smart_table::borrow(&registry.combats, player);
         (combat.last_damage_dealt, combat.last_damage_taken, combat.last_was_crit)
     }
 
     #[view]
-    public fun whose_turn(player: address): u8 acquires CombatState {
-        let combat = borrow_global<CombatState>(player);
+    public fun whose_turn(player: address): u8 acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        let combat = smart_table::borrow(&registry.combats, player);
         combat.current_turn
     }
 
     #[view]
-    public fun get_enemy_intent(player: address): u8 acquires CombatState {
-        let combat = borrow_global<CombatState>(player);
+    public fun get_enemy_intent(player: address): u8 acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        let combat = smart_table::borrow(&registry.combats, player);
         combat.enemy_next_intent
     }
 
     #[view]
-    public fun get_combat_details(player: address): (u64, u64, u8, bool, bool, bool, u8) acquires CombatState {
-        let combat = borrow_global<CombatState>(player);
+    public fun get_combat_details(player: address): (u64, u64, u8, bool, bool, bool, u8) acquires CombatRegistry {
+        let registry = borrow_global<CombatRegistry>(@ashfall);
+        let combat = smart_table::borrow(&registry.combats, player);
         (
             enemies::get_health(&combat.enemy),
             enemies::get_max_health(&combat.enemy),
