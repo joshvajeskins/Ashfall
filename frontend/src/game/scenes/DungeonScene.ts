@@ -5,16 +5,16 @@ import { DungeonGenerator } from '../dungeon';
 import { ParticleEffects, TransitionManager, RarityEffects, soundManager } from '../effects';
 import type { Character, Enemy, Room, DungeonLayout, Item } from '@/types';
 
-// Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (46px)
-const TILE_SCALE = 46 / 900; // Tiles: 900px -> 46px (13x13 grid)
-const PLAYER_SCALE = 46 / 900; // Player: 900px -> 46px (fills the tile)
-const ENEMY_SCALE = 38 / 900; // Enemy: 900px -> 38px
-const ITEM_SCALE = 28 / 900; // Items: 900px -> 28px (smaller pickup items)
-const BOSS_SCALE = 82 / 900; // Boss: 900px -> 82px (almost 2 tiles)
+// Sprite scaling constants - assets are ~900px, need to scale to fit TILE_SIZE (50px)
+const TILE_SCALE = 50 / 900; // Tiles: 900px -> 50px (12x12 grid)
+const PLAYER_SCALE = 50 / 900; // Player: 900px -> 50px (fills the tile)
+const ENEMY_SCALE = 42 / 900; // Enemy: 900px -> 42px
+const ITEM_SCALE = 30 / 900; // Items: 900px -> 30px (smaller pickup items)
+const BOSS_SCALE = 90 / 900; // Boss: 900px -> 90px (almost 2 tiles)
 
 // Animation sprite scaling - sprites are 64x64, need to scale to fit tile
-const ANIM_PLAYER_SCALE = 46 / 64; // Animated player: 64px -> 46px (fills the tile)
-const ANIM_ENEMY_SCALE = 38 / 64; // Animated enemy: 64px -> 38px
+const ANIM_PLAYER_SCALE = 50 / 64; // Animated player: 64px -> 50px (fills the tile)
+const ANIM_ENEMY_SCALE = 42 / 64; // Animated enemy: 64px -> 42px
 
 interface DungeonEnemy {
   sprite: Phaser.GameObjects.Sprite | Phaser.GameObjects.Image;
@@ -161,10 +161,10 @@ export class DungeonScene extends Phaser.Scene {
     const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
     const playerClass = this.character.class.toLowerCase();
 
-    // Always use static sprite for idle state
+    // Always use static sprite - force exact tile size
     const playerTexture = `player-${playerClass}`;
     this.player = this.add.sprite(startX, startY, playerTexture)
-      .setScale(PLAYER_SCALE)
+      .setDisplaySize(TILE_SIZE, TILE_SIZE)
       .setDepth(10);
   }
 
@@ -372,22 +372,11 @@ export class DungeonScene extends Phaser.Scene {
       this.player.setFlipX(dx < 0);
     }
 
-    // Play move animation if available
-    const playerClass = this.character.class.toLowerCase();
-    const moveAnimKey = `${playerClass}-move`;
-    if (this.anims.exists(moveAnimKey)) {
-      this.player.play(moveAnimKey);
-    }
-
+    // Keep static sprite during movement - no animation scale changes
     this.tweens.add({
       targets: this.player, x: newX, y: newY, duration: 150, ease: 'Linear',
       onComplete: () => {
         this.isMoving = false;
-        // Return to idle animation
-        const idleAnimKey = `${playerClass}-idle`;
-        if (this.anims.exists(idleAnimKey)) {
-          this.player.play(idleAnimKey);
-        }
         this.checkItemPickup();
       },
     });
