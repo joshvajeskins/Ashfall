@@ -59,6 +59,9 @@ export function useCombatTransaction() {
 
       try {
         const result = await startCombat(movementWallet.address, enemyType, floor);
+        if (result.success && result.txHash) {
+          addTransaction('Combat Started', result.txHash);
+        }
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to start combat';
@@ -68,7 +71,7 @@ export function useCombatTransaction() {
         setIsPending(false);
       }
     },
-    [movementWallet]
+    [movementWallet, addTransaction]
   );
 
   /**
@@ -99,7 +102,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build attack transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build attack transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -130,6 +135,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Player Attack', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Attack failed';
@@ -138,7 +144,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   /**
    * Player flee - User wallet signs (gas sponsored)
@@ -166,7 +172,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build flee transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build flee transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -195,6 +203,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Player Fled', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Flee failed';
@@ -203,7 +212,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   /**
    * Player defend - User wallet signs (gas sponsored)
@@ -230,7 +239,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build defend transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build defend transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -259,6 +270,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Player Defended', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Defend failed';
@@ -267,7 +279,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   /**
    * Player heavy attack - User wallet signs (gas sponsored)
@@ -296,7 +308,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build heavy attack transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build heavy attack transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -325,6 +339,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Heavy Attack', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Heavy attack failed';
@@ -333,7 +348,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   /**
    * Player heal - User wallet signs (gas sponsored)
@@ -360,7 +375,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build heal transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build heal transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -389,6 +406,7 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Player Healed', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Heal failed';
@@ -397,7 +415,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   /**
    * Enemy attack - Server-side (invisible wallet)
@@ -412,6 +430,9 @@ export function useCombatTransaction() {
 
     try {
       const result = await executeEnemyAttack(movementWallet.address);
+      if (result.success && result.txHash) {
+        addTransaction('Enemy Attack', result.txHash);
+      }
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Enemy attack failed';
@@ -420,7 +441,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet]);
+  }, [movementWallet, addTransaction]);
 
   /**
    * Pickup item - User wallet signs (gas sponsored)
@@ -485,7 +506,9 @@ export function useCombatTransaction() {
       });
 
       if (!buildResponse.ok) {
-        throw new Error('Failed to build pickup transaction');
+        const errorData = await buildResponse.json().catch(() => ({}));
+        const errorMsg = errorData.details || errorData.error || 'Failed to build pickup transaction';
+        throw new Error(errorMsg);
       }
 
       const { hash, rawTxnHex, feePayerAddress, feePayerAuthenticatorHex } =
@@ -516,6 +539,8 @@ export function useCombatTransaction() {
       }
 
       const result = await submitResponse.json();
+      const itemNames = ['Weapon', 'Armor', 'Accessory', 'Consumable'];
+      addTransaction(`Picked Up ${itemNames[itemType] || 'Item'}`, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Pickup failed';
@@ -524,7 +549,7 @@ export function useCombatTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   return {
     initiateCombat,

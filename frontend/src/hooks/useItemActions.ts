@@ -6,6 +6,7 @@ import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { useGameStore } from '@/stores/gameStore';
 import { useUIStore } from '@/stores/uiStore';
+import { useTransactionStore } from '@/stores/transactionStore';
 import { MODULES } from '@/lib/contract';
 import type { Item } from '@/types';
 
@@ -29,6 +30,7 @@ export function useItemActions(): UseItemActionsResult {
   const { isInDungeon, removeFromInventory } = useGameStore();
   const { inventory, setInventory } = useGameStore();
   const { addNotification } = useUIStore();
+  const addTransaction = useTransactionStore((state) => state.addTransaction);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -115,7 +117,8 @@ export function useItemActions(): UseItemActionsResult {
             throw new Error('Invalid item type for equipping');
         }
 
-        await submitSponsoredTransaction(functionName, [inventoryIndex]);
+        const result = await submitSponsoredTransaction(functionName, [inventoryIndex]);
+        addTransaction(`Equipped ${item.type}`, result.hash);
 
         // Optimistic update - mark item as equipped
         const updatedInventory = inventory.map((i) =>
@@ -139,7 +142,7 @@ export function useItemActions(): UseItemActionsResult {
         setIsLoading(false);
       }
     },
-    [authenticated, movementWallet, submitSponsoredTransaction, inventory, setInventory, addNotification]
+    [authenticated, movementWallet, submitSponsoredTransaction, inventory, setInventory, addNotification, addTransaction]
   );
 
   const unequipItem = useCallback(
@@ -167,7 +170,8 @@ export function useItemActions(): UseItemActionsResult {
             break;
         }
 
-        await submitSponsoredTransaction(functionName, []);
+        const result = await submitSponsoredTransaction(functionName, []);
+        addTransaction(`Unequipped ${slot}`, result.hash);
 
         addNotification({
           type: 'success',
@@ -185,7 +189,7 @@ export function useItemActions(): UseItemActionsResult {
         setIsLoading(false);
       }
     },
-    [authenticated, movementWallet, submitSponsoredTransaction, addNotification]
+    [authenticated, movementWallet, submitSponsoredTransaction, addNotification, addTransaction]
   );
 
   const useConsumable = useCallback(
@@ -204,10 +208,11 @@ export function useItemActions(): UseItemActionsResult {
       setError(null);
 
       try {
-        await submitSponsoredTransaction(
+        const result = await submitSponsoredTransaction(
           `${MODULES.loot}::use_consumable_from_inventory`,
           [inventoryIndex]
         );
+        addTransaction('Used Consumable', result.hash);
 
         // Optimistic update - remove consumed item
         removeFromInventory(item.id);
@@ -228,7 +233,7 @@ export function useItemActions(): UseItemActionsResult {
         setIsLoading(false);
       }
     },
-    [authenticated, movementWallet, submitSponsoredTransaction, removeFromInventory, addNotification]
+    [authenticated, movementWallet, submitSponsoredTransaction, removeFromInventory, addNotification, addTransaction]
   );
 
   const depositToStash = useCallback(
@@ -261,7 +266,8 @@ export function useItemActions(): UseItemActionsResult {
             throw new Error('Invalid item type');
         }
 
-        await submitSponsoredTransaction(functionName, [inventoryIndex]);
+        const result = await submitSponsoredTransaction(functionName, [inventoryIndex]);
+        addTransaction(`Deposited ${item.type}`, result.hash);
 
         // Optimistic update
         removeFromInventory(item.id);
@@ -282,7 +288,7 @@ export function useItemActions(): UseItemActionsResult {
         setIsLoading(false);
       }
     },
-    [authenticated, movementWallet, submitSponsoredTransaction, removeFromInventory, addNotification]
+    [authenticated, movementWallet, submitSponsoredTransaction, removeFromInventory, addNotification, addTransaction]
   );
 
   const withdrawFromStash = useCallback(
@@ -315,7 +321,8 @@ export function useItemActions(): UseItemActionsResult {
             throw new Error('Invalid item type');
         }
 
-        await submitSponsoredTransaction(functionName, [stashIndex]);
+        const result = await submitSponsoredTransaction(functionName, [stashIndex]);
+        addTransaction(`Withdrew ${item.type}`, result.hash);
 
         addNotification({
           type: 'success',
@@ -333,7 +340,7 @@ export function useItemActions(): UseItemActionsResult {
         setIsLoading(false);
       }
     },
-    [authenticated, movementWallet, submitSponsoredTransaction, addNotification]
+    [authenticated, movementWallet, submitSponsoredTransaction, addNotification, addTransaction]
   );
 
   return {
