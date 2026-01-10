@@ -121,28 +121,25 @@ export async function executeAuthorizedDungeonAction(
   playerAddress: string,
   additionalArgs: (string | number)[] = []
 ): Promise<{ hash: string; success: boolean }> {
-  const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-    '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
-
   const functionMap: Record<string, { fn: string; args: (string | number)[] }> = {
     complete_floor: {
-      fn: `${CONTRACT_ADDRESS}::dungeon::complete_floor`,
+      fn: `${MODULES.dungeon}::complete_floor`,
       args: [playerAddress, ...additionalArgs], // player, enemies_killed, xp_earned
     },
     complete_boss_floor: {
-      fn: `${CONTRACT_ADDRESS}::dungeon::complete_boss_floor`,
+      fn: `${MODULES.dungeon}::complete_boss_floor`,
       args: [playerAddress, ...additionalArgs], // player, xp_earned
     },
     player_died: {
-      fn: `${CONTRACT_ADDRESS}::dungeon::player_died`,
+      fn: `${MODULES.dungeon}::player_died`,
       args: [playerAddress],
     },
     exit_dungeon_success: {
-      fn: `${CONTRACT_ADDRESS}::dungeon::exit_dungeon_success`,
+      fn: `${MODULES.dungeon}::exit_dungeon_success`,
       args: [playerAddress],
     },
     start_boss_encounter: {
-      fn: `${CONTRACT_ADDRESS}::dungeon::start_boss_encounter`,
+      fn: `${MODULES.dungeon}::start_boss_encounter`,
       args: [playerAddress],
     },
   };
@@ -161,16 +158,13 @@ export async function executeAuthorizedCombatAction(
   playerAddress: string,
   additionalArgs: (string | number)[] = []
 ): Promise<{ hash: string; success: boolean }> {
-  const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ||
-    '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
-
   const functionMap: Record<string, { fn: string; args: (string | number)[] }> = {
     start_combat: {
-      fn: `${CONTRACT_ADDRESS}::combat::start_combat`,
+      fn: `${MODULES.combat}::start_combat`,
       args: [playerAddress, ...additionalArgs], // player, enemy_type, floor
     },
     enemy_attack: {
-      fn: `${CONTRACT_ADDRESS}::combat::enemy_attack`,
+      fn: `${MODULES.combat}::enemy_attack`,
       args: [playerAddress],
     },
   };

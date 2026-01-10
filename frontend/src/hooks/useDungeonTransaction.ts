@@ -5,6 +5,7 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { MODULES } from '@/lib/contract';
+import { useTransactionStore } from '@/stores/transactionStore';
 import {
   exitDungeonSuccess,
   completeBossFloor,
@@ -32,6 +33,7 @@ export function useDungeonTransaction() {
   const { signRawHash } = useSignRawHash();
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
+  const addTransaction = useTransactionStore((state) => state.addTransaction);
 
   const movementWallet = getMovementWallet(user);
 
@@ -89,6 +91,7 @@ export function useDungeonTransaction() {
         }
 
         const result = await submitResponse.json();
+        addTransaction('Entered Dungeon', result.hash);
         return { success: true, txHash: result.hash };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to enter dungeon';
@@ -98,7 +101,7 @@ export function useDungeonTransaction() {
         setIsPending(false);
       }
     },
-    [authenticated, movementWallet, signRawHash]
+    [authenticated, movementWallet, signRawHash, addTransaction]
   );
 
   /**
@@ -115,6 +118,9 @@ export function useDungeonTransaction() {
 
       try {
         const result = await completeFloor(movementWallet.address, enemiesKilled, xpEarned);
+        if (result.success && result.txHash) {
+          addTransaction('Floor Completed', result.txHash);
+        }
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to complete floor';
@@ -124,7 +130,7 @@ export function useDungeonTransaction() {
         setIsPending(false);
       }
     },
-    [movementWallet]
+    [movementWallet, addTransaction]
   );
 
   /**
