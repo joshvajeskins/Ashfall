@@ -33,7 +33,25 @@ export function useDungeonTransaction() {
   const { signRawHash } = useSignRawHash();
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const addTransaction = useTransactionStore((state) => state.addTransaction);
+  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
+    useTransactionStore();
+
+  const addTransaction = async (action: string, txHash: string) => {
+    const id = addPendingTransaction(action, txHash);
+    // Poll for confirmation in background
+    import('@/stores/transactionStore').then(({ waitForTransaction }) => {
+      waitForTransaction(txHash).then((success) => {
+        if (success) {
+          confirmTransaction(id);
+          setTimeout(() => removeTransaction(id), 4000);
+        } else {
+          failTransaction(id);
+          setTimeout(() => removeTransaction(id), 6000);
+        }
+      });
+    });
+    return id;
+  };
 
   const movementWallet = getMovementWallet(user);
 

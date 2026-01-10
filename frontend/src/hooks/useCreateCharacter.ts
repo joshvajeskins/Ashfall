@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useMovementTransaction } from './useMovementTransaction';
-import { useTransactionStore } from '@/stores/transactionStore';
+import { useTransactionStore, waitForTransaction } from '@/stores/transactionStore';
 import { CONTRACT_ADDRESS } from '@/lib/move/client';
 import type { CharacterClass } from '@/types';
 import { CLASS_STATS } from './useCharacter';
@@ -25,10 +25,25 @@ const CLASS_TO_ENUM: Record<CharacterClass, number> = {
 
 export function useCreateCharacter(): UseCreateCharacterResult {
   const { signAndSubmitTransaction, isConnected } = useMovementTransaction();
-  const addTransaction = useTransactionStore((state) => state.addTransaction);
+  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
+    useTransactionStore();
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const addTransaction = (action: string, txHash: string) => {
+    const id = addPendingTransaction(action, txHash);
+    waitForTransaction(txHash).then((success) => {
+      if (success) {
+        confirmTransaction(id);
+        setTimeout(() => removeTransaction(id), 4000);
+      } else {
+        failTransaction(id);
+        setTimeout(() => removeTransaction(id), 6000);
+      }
+    });
+    return id;
+  };
 
   const createCharacter = useCallback(
     async (characterClass: CharacterClass): Promise<boolean> => {
