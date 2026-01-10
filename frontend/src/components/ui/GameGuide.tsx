@@ -313,8 +313,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
             { name: 'Zombie', floor: '1-2', color: 'green', img: '/assets/enemies/zombie.png' },
             { name: 'Ghoul', floor: '2-3', color: 'purple', img: '/assets/enemies/ghoul.png' },
             { name: 'Vampire', floor: '3-4', color: 'red', img: '/assets/enemies/vampire.png' },
-            { name: 'Lich', floor: '4', color: 'blue', img: '/assets/enemies/lich.png' },
-            { name: 'Dragon', floor: '5', color: 'orange', img: '/assets/enemies/dragon.png' },
+            { name: 'Lich', floor: '4-5', color: 'blue', img: '/assets/enemies/lich.png' },
           ].map((enemy) => (
             <div
               key={enemy.name}
@@ -331,7 +330,7 @@ const GUIDE_SECTIONS: GuideSection[] = [
         </div>
         <div className="bg-orange-900/30 rounded p-2 border border-orange-800/50 mt-2">
           <div className="flex items-center gap-2">
-            <span className="text-xl">👑</span>
+            <img src="/assets/enemies/boss.png" alt="Boss" className="w-10 h-10" style={{ imageRendering: 'pixelated' }} />
             <div>
               <div className="text-orange-300 font-bold text-sm">Dungeon Lord (Boss)</div>
               <div className="text-gray-400 text-xs">Floor 5 - Defeat to win! Guaranteed epic+ loot.</div>
