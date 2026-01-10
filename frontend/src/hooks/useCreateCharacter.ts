@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useMovementTransaction } from './useMovementTransaction';
+import { useTransactionStore } from '@/stores/transactionStore';
 import { CONTRACT_ADDRESS } from '@/lib/move/client';
 import type { CharacterClass } from '@/types';
 import { CLASS_STATS } from './useCharacter';
@@ -24,6 +25,7 @@ const CLASS_TO_ENUM: Record<CharacterClass, number> = {
 
 export function useCreateCharacter(): UseCreateCharacterResult {
   const { signAndSubmitTransaction, isConnected } = useMovementTransaction();
+  const addTransaction = useTransactionStore((state) => state.addTransaction);
   const [isCreating, setIsCreating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,10 @@ export function useCreateCharacter(): UseCreateCharacterResult {
         const result = await signAndSubmitTransaction(payload);
         console.log('Transaction result:', result);
 
+        if (result.success) {
+          addTransaction(`Created ${characterClass}`, result.hash);
+        }
+
         return result.success;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create character';
@@ -61,7 +67,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
         setIsCreating(false);
       }
     },
-    [isConnected, signAndSubmitTransaction]
+    [isConnected, signAndSubmitTransaction, addTransaction]
   );
 
   const replaceCharacter = useCallback(
@@ -86,6 +92,10 @@ export function useCreateCharacter(): UseCreateCharacterResult {
         const result = await signAndSubmitTransaction(payload);
         console.log('Replace transaction result:', result);
 
+        if (result.success) {
+          addTransaction(`Replaced ${characterClass}`, result.hash);
+        }
+
         return result.success;
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to replace character';
@@ -96,7 +106,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
         setIsCreating(false);
       }
     },
-    [isConnected, signAndSubmitTransaction]
+    [isConnected, signAndSubmitTransaction, addTransaction]
   );
 
   const deleteCharacter = useCallback(async (): Promise<boolean> => {
@@ -119,6 +129,10 @@ export function useCreateCharacter(): UseCreateCharacterResult {
       const result = await signAndSubmitTransaction(payload);
       console.log('Delete transaction result:', result);
 
+      if (result.success) {
+        addTransaction('Character Deleted', result.hash);
+      }
+
       return result.success;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete character';
@@ -128,7 +142,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
     } finally {
       setIsDeleting(false);
     }
-  }, [isConnected, signAndSubmitTransaction]);
+  }, [isConnected, signAndSubmitTransaction, addTransaction]);
 
   return {
     createCharacter,
