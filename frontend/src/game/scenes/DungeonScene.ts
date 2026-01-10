@@ -168,11 +168,13 @@ export class DungeonScene extends Phaser.Scene {
     this.scalePlayerToTile();
   }
 
-  private scalePlayerToTile(): void {
+  private scalePlayerToTile(isAnimation = false): void {
     // Get the current frame dimensions and scale to fit TILE_SIZE
     const frame = this.player.frame;
-    const scaleX = TILE_SIZE / frame.width;
-    const scaleY = TILE_SIZE / frame.height;
+    // Animation sprites are smaller, so we need a larger scale multiplier
+    const animMultiplier = isAnimation ? 1.5 : 1;
+    const scaleX = (TILE_SIZE / frame.width) * animMultiplier;
+    const scaleY = (TILE_SIZE / frame.height) * animMultiplier;
     this.player.setScale(scaleX, scaleY);
   }
 
@@ -383,12 +385,14 @@ export class DungeonScene extends Phaser.Scene {
     // Play move animation if available
     const playerClass = this.character.class.toLowerCase();
     const moveAnimKey = `${playerClass}-move`;
+    const scaleForAnimation = () => this.scalePlayerToTile(true);
+
     if (this.anims.exists(moveAnimKey)) {
       this.player.play(moveAnimKey);
-      // Re-scale after animation starts (frame size may differ from static)
-      this.scalePlayerToTile();
+      // Re-scale after animation starts (animation frames need larger scale)
+      this.scalePlayerToTile(true);
       // Keep scale consistent on each frame update
-      this.player.on('animationupdate', this.scalePlayerToTile, this);
+      this.player.on('animationupdate', scaleForAnimation);
     }
 
     this.tweens.add({
@@ -396,11 +400,11 @@ export class DungeonScene extends Phaser.Scene {
       onComplete: () => {
         this.isMoving = false;
         // Remove frame update listener
-        this.player.off('animationupdate', this.scalePlayerToTile, this);
+        this.player.off('animationupdate', scaleForAnimation);
         // Return to static sprite
         const playerTexture = `player-${playerClass}`;
         this.player.setTexture(playerTexture);
-        this.scalePlayerToTile();
+        this.scalePlayerToTile(false);
         this.checkItemPickup();
       },
     });
