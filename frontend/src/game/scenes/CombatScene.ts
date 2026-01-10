@@ -20,6 +20,9 @@ const MANA_COSTS = {
   HEAL: 30,
 } as const;
 
+// Mana restore on defend (matching contract)
+const DEFEND_MANA_RESTORE = 10;
+
 interface CombatResult {
   damage: number;
   isCrit: boolean;
@@ -83,17 +86,43 @@ export class CombatScene extends Phaser.Scene {
   // On-chain combat state (updated after each attack)
   private onChainCombatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean };
 
+  // Flag to prevent any actions after combat ends
+  private combatEnded = false;
+
+  // Counter to track processed enemy attacks (prevents duplicate processing)
+  private lastProcessedEnemyAttackTx: string | null = null;
+
   constructor() {
     super({ key: 'CombatScene' });
   }
 
   init(data: CombatInitData): void {
+    // CRITICAL: Clean up event listeners from previous combat FIRST
+    // This prevents duplicate handlers when scene is restarted
+    if (this.txSuccessHandler) {
+      gameEvents.off(GAME_EVENTS.COMBAT_TX_SUCCESS, this.txSuccessHandler);
+    }
+    if (this.txFailedHandler) {
+      gameEvents.off(GAME_EVENTS.COMBAT_TX_FAILED, this.txFailedHandler);
+    }
+
+    // Cancel any pending timers from previous combat
+    if (this.time) {
+      this.time.removeAllEvents();
+    }
+
     this.character = { ...data.character };
     this.enemy = { ...data.enemy };
     this.returnData = data.returnData;
     this.currentTurn = 'player';
     this.isAnimating = false;
     this.isWaitingForTx = false;
+    this.combatEnded = false;
+    this.isPlayerDefending = false;
+    this.pendingNextIntent = undefined;
+    this.onChainCombatState = undefined;
+    this.enemyIntent = ENEMY_INTENT.ATTACK;
+    this.lastProcessedEnemyAttackTx = null;
     // Reset arrays to clear references from previous combat
     this.actionButtons = [];
     this.combatLog = [];
@@ -125,17 +154,35 @@ export class CombatScene extends Phaser.Scene {
 
   private setupTxEventListeners(): void {
     this.txSuccessHandler = (data: unknown) => {
-      const { action, combatState } = data as {
+      const { action, combatState, enemyIntent, txHash, resumed } = data as {
         action: string;
         txHash?: string;
         combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean };
+        enemyIntent?: number;
+        resumed?: boolean;
       };
-      console.log(`[CombatScene] TX Success: ${action}`, combatState ? `enemyKilled: ${combatState.enemyKilled}` : '');
+      console.log(`[CombatScene] TX Success: ${action}`, txHash ? `tx: ${txHash.slice(0, 10)}...` : '', combatState ? `enemyKilled: ${combatState.enemyKilled}` : '', enemyIntent !== undefined ? `intent: ${enemyIntent}` : '', resumed ? '(resumed)' : '');
+
+      // Ignore events if combat already ended (except start_combat)
+      if (this.combatEnded && action !== 'start_combat') {
+        console.log(`[CombatScene] Combat ended, ignoring ${action} success`);
+        return;
+      }
+
+      // For enemy_attack, prevent processing the same TX twice (duplicate event handler issue)
+      if (action === 'enemy_attack' && txHash) {
+        if (this.lastProcessedEnemyAttackTx === txHash) {
+          console.log(`[CombatScene] Already processed enemy attack TX ${txHash.slice(0, 10)}..., ignoring duplicate`);
+          return;
+        }
+        this.lastProcessedEnemyAttackTx = txHash;
+      }
+
       this.hideTxStatus();
 
       switch (action) {
         case 'start_combat':
-          this.onCombatStarted();
+          this.onCombatStarted(enemyIntent, combatState, resumed);
           break;
         case 'player_attack':
           this.onPlayerAttackConfirmed(combatState);
@@ -150,7 +197,7 @@ export class CombatScene extends Phaser.Scene {
           this.onPlayerHealConfirmed();
           break;
         case 'enemy_attack':
-          this.onEnemyAttackConfirmed();
+          this.onEnemyAttackConfirmed(enemyIntent);
           break;
         case 'flee':
           this.onFleeConfirmed();
@@ -161,6 +208,12 @@ export class CombatScene extends Phaser.Scene {
     this.txFailedHandler = (data: unknown) => {
       const { action, error } = data as { action: string; error: string };
       console.error(`[CombatScene] TX Failed: ${action}`, error);
+
+      // Ignore events if combat already ended
+      if (this.combatEnded) {
+        console.log(`[CombatScene] Combat ended, ignoring ${action} failure`);
+        return;
+      }
 
       // Handle enemy_attack failures specially
       if (action === 'enemy_attack') {
@@ -218,13 +271,39 @@ export class CombatScene extends Phaser.Scene {
     gameEvents.emit(GAME_EVENTS.COMBAT_START_REQUEST, {
       enemyType,
       floor: this.returnData.floor,
+      roomId: this.returnData.roomId,
     });
   }
 
-  private onCombatStarted(): void {
+  private onCombatStarted(
+    enemyIntent?: number,
+    combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean },
+    resumed?: boolean
+  ): void {
     this.isWaitingForTx = false;
     this.turnText.setText('YOUR TURN');
-    this.addLogMessage(`Combat with ${this.enemy.name} begins!`);
+
+    // Sync enemy health from on-chain state (for fled enemy persistence or resumed combat)
+    if (combatState && combatState.enemyHealth !== undefined) {
+      this.enemy.health = combatState.enemyHealth;
+      if (combatState.enemyMaxHealth) {
+        this.enemy.maxHealth = combatState.enemyMaxHealth;
+      }
+      this.updateHealthBars();
+    }
+
+    // Set initial enemy intent from on-chain state
+    if (enemyIntent !== undefined) {
+      this.updateEnemyIntent(enemyIntent);
+    }
+
+    // Show appropriate message
+    if (resumed) {
+      this.addLogMessage(`Resumed combat with ${this.enemy.name}!`);
+    } else {
+      this.addLogMessage(`Combat with ${this.enemy.name} begins!`);
+    }
+
     this.setButtonsEnabled(true);
     gameEvents.emit(GAME_EVENTS.COMBAT_START, { enemy: this.enemy });
     gameEvents.emit(GAME_EVENTS.SCENE_READY, 'CombatScene');
@@ -746,10 +825,17 @@ export class CombatScene extends Phaser.Scene {
     this.isPlayerDefending = true;
     soundManager.play('buttonClick');
 
-    this.addLogMessage('You brace for impact! (50% damage reduction)');
+    // Restore mana (matching contract: DEFEND_MANA_RESTORE = 10)
+    const manaRestored = Math.min(DEFEND_MANA_RESTORE, this.character.maxMana - this.character.mana);
+    this.character.mana = Math.min(this.character.mana + DEFEND_MANA_RESTORE, this.character.maxMana);
+
+    this.addLogMessage(`You brace for impact! (50% dmg reduction, +${manaRestored} mana)`);
 
     // Visual feedback - VFX magic effect
     this.playVFXMagic(this.PLAYER_X, this.COMBATANT_Y, 0x4488ff);
+
+    // Update UI to show mana restoration
+    this.updateHealthBars();
 
     this.isAnimating = false;
     this.switchTurn();
@@ -822,6 +908,12 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private requestEnemyAttack(): void {
+    // Prevent any actions after combat ends
+    if (this.combatEnded) {
+      console.log('[CombatScene] Combat ended, skipping enemy attack request');
+      return;
+    }
+
     // Prevent duplicate requests
     if (this.isWaitingForTx) {
       console.log('[CombatScene] Already waiting for tx, skipping enemy attack request');
@@ -835,10 +927,20 @@ export class CombatScene extends Phaser.Scene {
     gameEvents.emit(GAME_EVENTS.ENEMY_ATTACK_REQUEST);
   }
 
-  private onEnemyAttackConfirmed(): void {
+  private onEnemyAttackConfirmed(nextIntent?: number): void {
+    // Prevent processing if combat already ended
+    if (this.combatEnded) {
+      console.log('[CombatScene] Combat ended, ignoring enemy attack confirmation');
+      return;
+    }
     this.isWaitingForTx = false;
+    // Store next intent from on-chain for use after attack animation
+    this.pendingNextIntent = nextIntent;
     this.enemyAttack();
   }
+
+  // Store pending intent from on-chain to apply after attack animation
+  private pendingNextIntent?: number;
 
   private enemyAttack(): void {
     const intent = this.enemyIntent;
@@ -846,8 +948,11 @@ export class CombatScene extends Phaser.Scene {
     // Handle enemy defend - no attack
     if (intent === ENEMY_INTENT.DEFEND) {
       this.addLogMessage(`${this.enemy.name} braces for your next attack!`);
-      // Generate new intent for next turn
-      this.updateEnemyIntent(Math.floor(Math.random() * 3));
+      // Use on-chain intent for next turn (already fetched)
+      if (this.pendingNextIntent !== undefined) {
+        this.updateEnemyIntent(this.pendingNextIntent);
+        this.pendingNextIntent = undefined;
+      }
       this.isAnimating = false;
       this.switchTurn();
       return;
@@ -875,11 +980,17 @@ export class CombatScene extends Phaser.Scene {
     this.addLogMessage(`${this.enemy.name} ${attackType} for ${finalDamage} damage!`);
     gameEvents.emit(GAME_EVENTS.COMBAT_DAMAGE, { target: 'player', damage: finalDamage });
 
-    // Generate new intent for next turn
-    this.updateEnemyIntent(Math.floor(Math.random() * 3));
+    // Use on-chain intent for next turn (already fetched)
+    if (this.pendingNextIntent !== undefined) {
+      this.updateEnemyIntent(this.pendingNextIntent);
+      this.pendingNextIntent = undefined;
+    }
 
     const enemyType = this.getEnemyType();
-    const enemyAttackAnim = `${enemyType}-attack`;
+    // Use critical animation for heavy attacks, normal attack animation otherwise
+    const enemyAttackAnim = intent === ENEMY_INTENT.HEAVY_ATTACK
+      ? `${enemyType}-critical`
+      : `${enemyType}-attack`;
 
     if (this.enemyHasAnimations && this.anims.exists(enemyAttackAnim)) {
       this.scaleEnemyForAnimation();
@@ -969,6 +1080,15 @@ export class CombatScene extends Phaser.Scene {
   // ==================== COMBAT END ====================
 
   private enemyDefeated(): void {
+    // Mark combat as ended to prevent any further actions
+    this.combatEnded = true;
+    this.isWaitingForTx = false;
+    this.setButtonsEnabled(false);
+
+    // CRITICAL: Remove the killed enemy from the dungeon layout
+    // This prevents the enemy from respawning when returning to the dungeon
+    this.removeEnemyFromLayout();
+
     const xp = this.enemy.experienceReward;
     soundManager.play('enemyDeath');
     this.particles.deathSmoke({ x: this.ENEMY_X, y: this.COMBATANT_Y });
@@ -1026,7 +1146,56 @@ export class CombatScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * Remove the killed enemy from the dungeon layout.
+   * This prevents enemies from respawning when returning to the dungeon.
+   */
+  private removeEnemyFromLayout(): void {
+    const { floor, roomId, dungeonLayout } = this.returnData;
+
+    // Find the current floor
+    const floorData = dungeonLayout.floors[floor - 1];
+    if (!floorData) {
+      console.warn('[CombatScene] Could not find floor data:', floor);
+      return;
+    }
+
+    // Find the current room
+    const room = floorData.rooms.find(r => r.id === roomId);
+    if (!room) {
+      console.warn('[CombatScene] Could not find room:', roomId);
+      return;
+    }
+
+    // Remove the enemy by id (or by name if id doesn't match)
+    const enemyIndex = room.enemies.findIndex(e => e.id === this.enemy.id);
+    if (enemyIndex !== -1) {
+      room.enemies.splice(enemyIndex, 1);
+      console.log(`[CombatScene] Removed enemy ${this.enemy.name} (id: ${this.enemy.id}) from room ${roomId}`);
+    } else {
+      // Try to find by name if id doesn't match (fallback)
+      const byNameIndex = room.enemies.findIndex(e => e.name === this.enemy.name);
+      if (byNameIndex !== -1) {
+        room.enemies.splice(byNameIndex, 1);
+        console.log(`[CombatScene] Removed enemy ${this.enemy.name} by name from room ${roomId}`);
+      } else {
+        console.warn(`[CombatScene] Could not find enemy to remove:`, this.enemy);
+      }
+    }
+
+    // Mark room as cleared if no enemies left
+    if (room.enemies.length === 0 && room.type !== 'start') {
+      room.cleared = true;
+      console.log(`[CombatScene] Room ${roomId} marked as cleared`);
+    }
+  }
+
   private playerDefeated(): void {
+    // Mark combat as ended to prevent any further actions
+    this.combatEnded = true;
+    this.isWaitingForTx = false;
+    this.setButtonsEnabled(false);
+
     this.character.isAlive = false;
     soundManager.play('playerDeath');
     this.screenEffects.heavyShake();
@@ -1070,7 +1239,19 @@ export class CombatScene extends Phaser.Scene {
 
   // ==================== HELPERS ====================
 
-  private calculateDamage(attacker: Character | Enemy, target: Character | Enemy): CombatResult {
+  // Generate seed for deterministic randomness (synced with contract)
+  private generateSeed(): number {
+    return Date.now() + Math.floor(Math.random() * 1000000);
+  }
+
+  // Calculate crit using same formula as contract: seed % 1000 < (50 + agility * 2)
+  private calculateCrit(agility: number, seed: number): boolean {
+    const critThreshold = 50 + (agility * 2); // out of 1000
+    const critRoll = seed % 1000;
+    return critRoll < critThreshold;
+  }
+
+  private calculateDamage(attacker: Character | Enemy, target: Character | Enemy, seed?: number): CombatResult {
     const isPlayer = 'stats' in attacker;
     const enemy = attacker as Enemy;
     const baseDamage = isPlayer
@@ -1078,10 +1259,12 @@ export class CombatScene extends Phaser.Scene {
       : (enemy.damage ?? enemy.attack ?? 10);
     const weaponDamage = isPlayer && (attacker as Character).equipment.weapon?.stats.damage || 0;
     const defense = 'defense' in target ? (target as Enemy).defense : 0;
-    const critChance = isPlayer
-      ? GAME_CONSTANTS.BASE_CRIT_CHANCE + (attacker as Character).stats.agility * GAME_CONSTANTS.AGILITY_CRIT_BONUS
-      : 0.05;
-    const isCrit = Math.random() < critChance;
+
+    // Use seed-based crit calculation (synced with contract)
+    const actualSeed = seed ?? this.generateSeed();
+    const agility = isPlayer ? (attacker as Character).stats.agility : 0;
+    const isCrit = this.calculateCrit(agility, actualSeed);
+
     const rawDamage = baseDamage + weaponDamage;
     const mitigated = Math.max(1, rawDamage - defense);
     const finalDamage = Math.floor(isCrit ? mitigated * GAME_CONSTANTS.CRIT_MULTIPLIER : mitigated);

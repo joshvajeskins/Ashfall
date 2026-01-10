@@ -381,6 +381,107 @@ module ashfall::dungeon {
     }
 
     // =============================================
+    // TRANSFER FLOOR LOOT - Save loot mid-dungeon
+    // =============================================
+
+    #[event]
+    struct FloorLootTransferred has drop, store {
+        player: address,
+        floor: u64,
+        weapons_transferred: u64,
+        armors_transferred: u64,
+        accessories_transferred: u64,
+        gold_transferred: u64
+    }
+
+    /// Transfer pending loot to stash on floor completion without exiting dungeon.
+    /// This allows players to "bank" their loot mid-run for safety.
+    public entry fun transfer_floor_loot(
+        server: &signer,
+        player: address
+    ) acquires ServerConfig, DungeonRun {
+        let server_addr = signer::address_of(server);
+        assert!(is_authorized_server(server_addr), E_UNAUTHORIZED);
+        assert!(exists<DungeonRun>(player), E_NOT_IN_DUNGEON);
+
+        let run = borrow_global_mut<DungeonRun>(player);
+        assert!(run.is_active, E_RUN_NOT_ACTIVE);
+
+        let floor = run.current_floor;
+
+        // Count items for event
+        let weapons_transferred = vector::length(&run.pending_loot.weapons);
+        let armors_transferred = vector::length(&run.pending_loot.armors);
+        let accessories_transferred = vector::length(&run.pending_loot.accessories);
+        let gold_transferred = run.pending_loot.gold;
+
+        // Transfer pending loot to player's stash (if initialized)
+        if (stash::stash_exists(player)) {
+            // Transfer weapons to stash
+            while (!vector::is_empty(&run.pending_loot.weapons)) {
+                let weapon = vector::pop_back(&mut run.pending_loot.weapons);
+                if (stash::has_capacity_for(player, 1)) {
+                    stash::deposit_weapon_from_dungeon(player, weapon);
+                } else {
+                    // Stash full - item is lost
+                    items::destroy_weapon(weapon);
+                }
+            };
+
+            // Transfer armors to stash
+            while (!vector::is_empty(&run.pending_loot.armors)) {
+                let armor = vector::pop_back(&mut run.pending_loot.armors);
+                if (stash::has_capacity_for(player, 1)) {
+                    stash::deposit_armor_from_dungeon(player, armor);
+                } else {
+                    items::destroy_armor(armor);
+                }
+            };
+
+            // Transfer accessories to stash
+            while (!vector::is_empty(&run.pending_loot.accessories)) {
+                let acc = vector::pop_back(&mut run.pending_loot.accessories);
+                if (stash::has_capacity_for(player, 1)) {
+                    stash::deposit_accessory_from_dungeon(player, acc);
+                } else {
+                    items::destroy_accessory(acc);
+                }
+            };
+
+            // Transfer gold
+            let gold = run.pending_loot.gold;
+            if (gold > 0) {
+                stash::deposit_gold_from_dungeon(player, gold);
+                run.pending_loot.gold = 0;
+            };
+        } else {
+            // No stash initialized - destroy all items
+            while (!vector::is_empty(&run.pending_loot.weapons)) {
+                let weapon = vector::pop_back(&mut run.pending_loot.weapons);
+                items::destroy_weapon(weapon);
+            };
+            while (!vector::is_empty(&run.pending_loot.armors)) {
+                let armor = vector::pop_back(&mut run.pending_loot.armors);
+                items::destroy_armor(armor);
+            };
+            while (!vector::is_empty(&run.pending_loot.accessories)) {
+                let acc = vector::pop_back(&mut run.pending_loot.accessories);
+                items::destroy_accessory(acc);
+            };
+            run.pending_loot.gold = 0;
+        };
+
+        event::emit(FloorLootTransferred {
+            player,
+            floor,
+            weapons_transferred,
+            armors_transferred,
+            accessories_transferred,
+            gold_transferred
+        });
+    }
+
+    // =============================================
     // EXIT DUNGEON SUCCESS - Transfer pending loot
     // =============================================
 

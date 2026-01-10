@@ -140,3 +140,37 @@ export async function reportPlayerDeath(
     };
   }
 }
+
+export interface TransferFloorLootResponse {
+  success: boolean;
+  txHash?: string;
+  error?: string;
+}
+
+/**
+ * Transfer floor loot to stash - saves pending loot mid-dungeon
+ * Server-authorized function - allows players to "bank" items on floor completion
+ */
+export async function transferFloorLoot(
+  playerAddress: string
+): Promise<TransferFloorLootResponse> {
+  try {
+    const response = await fetch(getApiUrl('/dungeon/transfer-loot'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerAddress }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to transfer floor loot',
+    };
+  }
+}

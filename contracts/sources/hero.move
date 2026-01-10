@@ -760,6 +760,16 @@ module ashfall::hero {
         use_mana(character, amount)
     }
 
+    /// Restore mana to a player's character - callable by combat module
+    /// Returns (amount_restored, new_mana)
+    public fun restore_mana_from_player(player: address, amount: u64): (u64, u64) acquires Character {
+        let character = borrow_global_mut<Character>(player);
+        let old_mana = character.mana;
+        character.mana = min(character.mana + amount, character.max_mana);
+        let actual_restored = character.mana - old_mana;
+        (actual_restored, character.mana)
+    }
+
     /// Heal a player's character by percentage of max HP - callable by combat module
     /// Returns (amount_healed, new_health)
     public fun heal_player_percent(player: address, percent: u64): (u64, u64) acquires Character {

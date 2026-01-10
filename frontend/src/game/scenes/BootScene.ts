@@ -132,8 +132,8 @@ export class BootScene extends Phaser.Scene {
     });
     // Load battle background
     this.load.image('battle-bg', '/assets/backgrounds/battle.png');
-    // Load VFX sprite
-    this.load.image('vfx-magic', '/assets/effects/vfx-magic.png');
+    // Load VFX spritesheet (6 frames)
+    this.load.spritesheet('vfx-magic', '/assets/effects/vfx-magic.png', { frameWidth: 64, frameHeight: 64 });
   }
 
   private loadAnimationSpritesheets(): void {
@@ -247,6 +247,16 @@ export class BootScene extends Phaser.Scene {
         });
       }
     });
+
+    // Create VFX magic animation
+    if (this.textures.exists('vfx-magic') && !this.anims.exists('vfx-magic')) {
+      this.anims.create({
+        key: 'vfx-magic',
+        frames: this.anims.generateFrameNumbers('vfx-magic', { start: 0, end: 5 }),
+        frameRate: 12,
+        repeat: 0,
+      });
+    }
   }
 
   private generateFallbackTextures(): void {

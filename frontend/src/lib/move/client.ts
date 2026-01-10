@@ -14,7 +14,7 @@ const MOVEMENT_TESTNET_CONFIG = {
 };
 
 // Contract address
-const CONTRACT_ADDRESS = '0x7e776761849d04762cd5c9a0edf1a27ca8516374580688d29e178cd321eeb152';
+const CONTRACT_ADDRESS = '0xaf6509a4df30480896f87d0b2b75bb7f698bbd95d3e22609edf158bf0b1e0f58';
 
 // Initialize Aptos client for Movement
 const config = new AptosConfig({

@@ -5,7 +5,7 @@
  * Update this value when deploying to a new address.
  */
 
-export const CONTRACT_ADDRESS = '0x7e776761849d04762cd5c9a0edf1a27ca8516374580688d29e178cd321eeb152';
+export const CONTRACT_ADDRESS = '0xaf6509a4df30480896f87d0b2b75bb7f698bbd95d3e22609edf158bf0b1e0f58';
 
 // Module names for building function identifiers
 export const MODULES = {

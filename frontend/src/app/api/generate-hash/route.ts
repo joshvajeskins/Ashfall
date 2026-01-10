@@ -4,7 +4,7 @@ import { sha3_256 } from '@noble/hashes/sha3.js';
 
 const MOVEMENT_TESTNET_CONFIG = {
   rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
-  indexerUrl: 'https://indexer.testnet.movementnetwork.xyz/v1/graphql',
+  indexerUrl: 'https://hasura.testnet.movementnetwork.xyz/v1/graphql',
 };
 
 const config = new AptosConfig({

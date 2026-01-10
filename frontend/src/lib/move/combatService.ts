@@ -16,6 +16,13 @@ export interface CombatStartResponse {
   success: boolean;
   txHash?: string;
   error?: string;
+  // On-chain combat state
+  enemyIntent?: number;
+  enemyHealth?: number;
+  enemyMaxHealth?: number;
+  // Already in combat indicator
+  alreadyInCombat?: boolean;
+  combatState?: { enemyHealth: number; enemyMaxHealth: number; turn: number; isActive: boolean };
 }
 
 export interface PlayerAttackResponse {
@@ -33,6 +40,8 @@ export interface EnemyAttackResponse {
   damage?: number;
   playerKilled?: boolean;
   newIntent?: number;
+  enemyIntent?: number; // On-chain intent for next turn
+  combatActive?: boolean;
   error?: string;
 }
 
@@ -101,11 +110,13 @@ export const ENEMY_TYPES = {
 
 /**
  * Start combat - Server-authorized (invisible wallet)
+ * @param roomId - Room ID for enemy health persistence on flee
  */
 export async function startCombat(
   playerAddress: string,
   enemyType: keyof typeof ENEMY_TYPES | number,
-  floor: number
+  floor: number,
+  roomId: number = 0
 ): Promise<CombatStartResponse> {
   try {
     const enemyTypeNum = typeof enemyType === 'number'
@@ -115,15 +126,22 @@ export async function startCombat(
     const response = await fetch(`${API_BASE}/api/combat/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerAddress, enemyType: enemyTypeNum, floor }),
+      body: JSON.stringify({ playerAddress, enemyType: enemyTypeNum, floor, roomId }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || `HTTP ${response.status}`);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      const errorMessage = data.error || `HTTP ${response.status}`;
+      return {
+        success: false,
+        error: errorMessage,
+        alreadyInCombat: data.alreadyInCombat,
+        combatState: data.combatState,
+      };
     }
 
-    return await response.json();
+    return data;
   } catch (error) {
     return {
       success: false,
@@ -235,12 +253,18 @@ export async function executeEnemyAttack(
       body: JSON.stringify({ playerAddress }),
     });
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(error || `HTTP ${response.status}`);
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      // Extract error message from JSON response
+      const errorMessage = data.error || `HTTP ${response.status}`;
+      return {
+        success: false,
+        error: errorMessage,
+      };
     }
 
-    return await response.json();
+    return data;
   } catch (error) {
     return {
       success: false,

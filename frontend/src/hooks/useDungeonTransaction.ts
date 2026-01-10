@@ -5,12 +5,13 @@ import { usePrivy } from '@privy-io/react-auth';
 import { useSignRawHash } from '@privy-io/react-auth/extended-chains';
 import { getMovementWallet } from '@/lib/privy-movement';
 import { MODULES } from '@/lib/contract';
-import { useTransactionStore } from '@/stores/transactionStore';
+import { useTransactionStore, waitForTransaction } from '@/stores/transactionStore';
 import {
   exitDungeonSuccess,
   completeBossFloor,
   completeFloor,
   reportPlayerDeath,
+  transferFloorLoot,
 } from '@/lib/move/dungeonService';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
@@ -33,24 +34,31 @@ export function useDungeonTransaction() {
   const { signRawHash } = useSignRawHash();
   const [isPending, setIsPending] = useState(false);
   const [lastError, setLastError] = useState<string | null>(null);
-  const { addPendingTransaction, confirmTransaction, failTransaction, removeTransaction } =
-    useTransactionStore();
+  const {
+    addSubmittingTransaction,
+    updateTransactionHash,
+    confirmTransaction,
+    failTransaction,
+    removeTransaction,
+  } = useTransactionStore();
 
-  const addTransaction = async (action: string, txHash: string) => {
-    const id = addPendingTransaction(action, txHash);
-    // Poll for confirmation in background
-    import('@/stores/transactionStore').then(({ waitForTransaction }) => {
-      waitForTransaction(txHash).then((success) => {
-        if (success) {
-          confirmTransaction(id);
-          setTimeout(() => removeTransaction(id), 4000);
-        } else {
-          failTransaction(id);
-          setTimeout(() => removeTransaction(id), 6000);
-        }
-      });
+  // Show notification immediately, then update with txHash when available
+  const startTransaction = (action: string) => {
+    return addSubmittingTransaction(action);
+  };
+
+  // Update notification with txHash and start polling for confirmation
+  const completeTransaction = (id: string, txHash: string) => {
+    updateTransactionHash(id, txHash);
+    waitForTransaction(txHash).then((success) => {
+      if (success) {
+        confirmTransaction(id);
+        setTimeout(() => removeTransaction(id), 4000);
+      } else {
+        failTransaction(id);
+        setTimeout(() => removeTransaction(id), 6000);
+      }
     });
-    return id;
   };
 
   const movementWallet = getMovementWallet(user);
@@ -66,6 +74,9 @@ export function useDungeonTransaction() {
 
       setIsPending(true);
       setLastError(null);
+
+      // Show notification immediately
+      const txId = startTransaction('Entered Dungeon');
 
       try {
         const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
@@ -109,17 +120,19 @@ export function useDungeonTransaction() {
         }
 
         const result = await submitResponse.json();
-        addTransaction('Entered Dungeon', result.hash);
+        completeTransaction(txId, result.hash);
         return { success: true, txHash: result.hash };
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to enter dungeon';
         setLastError(errorMsg);
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
         return { success: false, error: errorMsg };
       } finally {
         setIsPending(false);
       }
     },
-    [authenticated, movementWallet, signRawHash, addTransaction]
+    [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]
   );
 
   /**
@@ -134,21 +147,29 @@ export function useDungeonTransaction() {
       setIsPending(true);
       setLastError(null);
 
+      // Show notification immediately
+      const txId = startTransaction('Floor Completed');
+
       try {
         const result = await completeFloor(movementWallet.address, enemiesKilled, xpEarned);
         if (result.success && result.txHash) {
-          addTransaction('Floor Completed', result.txHash);
+          completeTransaction(txId, result.txHash);
+        } else {
+          failTransaction(txId);
+          setTimeout(() => removeTransaction(txId), 4000);
         }
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to complete floor';
         setLastError(errorMsg);
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
         return { success: false, error: errorMsg };
       } finally {
         setIsPending(false);
       }
     },
-    [movementWallet, addTransaction]
+    [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]
   );
 
   /**
@@ -163,21 +184,29 @@ export function useDungeonTransaction() {
       setIsPending(true);
       setLastError(null);
 
+      // Show notification immediately
+      const txId = startTransaction('Boss Defeated');
+
       try {
         const result = await completeBossFloor(movementWallet.address, xpEarned);
         if (result.success && result.txHash) {
-          addTransaction('Boss Defeated', result.txHash);
+          completeTransaction(txId, result.txHash);
+        } else {
+          failTransaction(txId);
+          setTimeout(() => removeTransaction(txId), 4000);
         }
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to complete boss';
         setLastError(errorMsg);
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
         return { success: false, error: errorMsg };
       } finally {
         setIsPending(false);
       }
     },
-    [movementWallet, addTransaction]
+    [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]
   );
 
   /**
@@ -192,20 +221,28 @@ export function useDungeonTransaction() {
     setIsPending(true);
     setLastError(null);
 
+    // Show notification immediately
+    const txId = startTransaction('Player Died');
+
     try {
       const result = await reportPlayerDeath(movementWallet.address);
       if (result.success && result.txHash) {
-        addTransaction('Player Died', result.txHash);
+        completeTransaction(txId, result.txHash);
+      } else {
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
       }
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to process death';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet, addTransaction]);
+  }, [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Exit dungeon successfully - Server-side (invisible wallet)
@@ -219,20 +256,63 @@ export function useDungeonTransaction() {
     setIsPending(true);
     setLastError(null);
 
+    // Show notification immediately
+    const txId = startTransaction('Exited Dungeon');
+
     try {
       const result = await exitDungeonSuccess(movementWallet.address);
       if (result.success && result.txHash) {
-        addTransaction('Exited Dungeon', result.txHash);
+        completeTransaction(txId, result.txHash);
+      } else {
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
       }
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to exit dungeon';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet, addTransaction]);
+  }, [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]);
+
+  /**
+   * Transfer floor loot to stash - Server-side (invisible wallet)
+   * Allows players to "bank" their loot mid-dungeon for safety
+   */
+  const triggerTransferFloorLoot = useCallback(async (): Promise<DungeonResult> => {
+    if (!movementWallet) {
+      return { success: false, error: 'Wallet not connected' };
+    }
+
+    setIsPending(true);
+    setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Loot Saved to Stash');
+
+    try {
+      const result = await transferFloorLoot(movementWallet.address);
+      if (result.success && result.txHash) {
+        completeTransaction(txId, result.txHash);
+      } else {
+        failTransaction(txId);
+        setTimeout(() => removeTransaction(txId), 4000);
+      }
+      return result;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to transfer floor loot';
+      setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
+      return { success: false, error: errorMsg };
+    } finally {
+      setIsPending(false);
+    }
+  }, [movementWallet, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   /**
    * Initialize stash - User wallet signs (gas sponsored)
@@ -244,6 +324,9 @@ export function useDungeonTransaction() {
 
     setIsPending(true);
     setLastError(null);
+
+    // Show notification immediately
+    const txId = startTransaction('Stash Initialized');
 
     try {
       const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
@@ -287,16 +370,18 @@ export function useDungeonTransaction() {
       }
 
       const result = await submitResponse.json();
-      addTransaction('Stash Initialized', result.hash);
+      completeTransaction(txId, result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to init stash';
       setLastError(errorMsg);
+      failTransaction(txId);
+      setTimeout(() => removeTransaction(txId), 4000);
       return { success: false, error: errorMsg };
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash, addTransaction]);
+  }, [authenticated, movementWallet, signRawHash, startTransaction, completeTransaction, failTransaction, removeTransaction]);
 
   return {
     enterDungeon,
@@ -304,6 +389,7 @@ export function useDungeonTransaction() {
     triggerCompleteBoss,
     triggerPlayerDeath,
     triggerExitDungeon,
+    triggerTransferFloorLoot,
     initializeStash,
     isPending,
     lastError,

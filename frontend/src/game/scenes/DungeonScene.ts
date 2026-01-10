@@ -523,8 +523,20 @@ export class DungeonScene extends Phaser.Scene {
         this.player.setTexture(playerTexture);
         this.resetPlayerToStatic();
         this.checkItemPickup();
+        this.checkFloorExit(); // Check if player stepped on floor exit
       },
     });
+  }
+
+  private checkFloorExit(): void {
+    for (const zone of this.doorZones) {
+      if (zone.getData('isFloorExit')) {
+        if (Phaser.Math.Distance.Between(this.player.x, this.player.y, zone.x, zone.y) < TILE_SIZE / 2) {
+          this.nextFloor();
+          return;
+        }
+      }
+    }
   }
 
   private checkDoorCollision(x: number, y: number): void {
@@ -539,7 +551,17 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private transitionToRoom(targetRoomId: number, exitDirection: string): void {
-    if (!this.currentRoom.cleared && this.currentRoom.type !== 'start') return;
+    if (!this.currentRoom.cleared && this.currentRoom.type !== 'start') {
+      // Show appropriate message based on what's blocking progress
+      if (this.enemies.length > 0) {
+        this.showBlockedMessage(`Defeat all enemies first! (${this.enemies.length} remaining)`);
+      } else if (this.items.length > 0 && this.currentRoom.type === 'treasure') {
+        this.showBlockedMessage(`Collect all items first! (${this.items.length} remaining)`);
+      } else {
+        this.showBlockedMessage('Clear the room before leaving!');
+      }
+      return;
+    }
     this.isTransitioning = true;
     gameEvents.emit(GAME_EVENTS.ROOM_TRANSITION, { from: this.currentRoomId, to: targetRoomId });
     this.cameras.main.fadeOut(200, 0, 0, 0);
@@ -710,25 +732,15 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private playVFXMagic(x: number, y: number, tint: number = 0xffffff): void {
-    if (!this.textures.exists('vfx-magic')) return;
+    if (!this.textures.exists('vfx-magic') || !this.anims.exists('vfx-magic')) return;
 
-    const vfx = this.add.image(x, y, 'vfx-magic')
+    const vfx = this.add.sprite(x, y, 'vfx-magic')
       .setDisplaySize(80, 80)
       .setTint(tint)
-      .setAlpha(0.8)
       .setDepth(50);
 
-    // Animate: scale up and fade out with rotation
-    this.tweens.add({
-      targets: vfx,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      alpha: 0,
-      angle: 180,
-      duration: 600,
-      ease: 'Power2',
-      onComplete: () => vfx.destroy()
-    });
+    vfx.play('vfx-magic');
+    vfx.once('animationcomplete', () => vfx.destroy());
   }
 
   // Called from React when player levels up
@@ -736,5 +748,28 @@ export class DungeonScene extends Phaser.Scene {
     soundManager.play('levelUp');
     this.playVFXMagic(this.player.x, this.player.y, 0x44ff88);
     this.cameras.main.flash(300, 255, 255, 200, true);
+  }
+
+  private showBlockedMessage(message: string): void {
+    soundManager.play('error');
+
+    // Show message near the player
+    const text = this.add.text(this.player.x, this.player.y - 40, message, {
+      fontFamily: 'monospace',
+      fontSize: '14px',
+      color: '#ff4444',
+      backgroundColor: '#000000aa',
+      padding: { x: 8, y: 4 },
+    }).setOrigin(0.5).setDepth(100);
+
+    // Animate and destroy
+    this.tweens.add({
+      targets: text,
+      y: text.y - 30,
+      alpha: 0,
+      duration: 1500,
+      ease: 'Power2',
+      onComplete: () => text.destroy()
+    });
   }
 }
