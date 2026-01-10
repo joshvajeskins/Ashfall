@@ -1,26 +1,13 @@
 'use client';
 
-import { useEffect } from 'react';
 import {
   useTransactionStore,
   getExplorerUrl,
   truncateHash,
 } from '@/stores/transactionStore';
 
-const AUTO_DISMISS_MS = 5000;
-
 export function TransactionToast() {
   const { notifications, removeTransaction } = useTransactionStore();
-
-  useEffect(() => {
-    if (notifications.length === 0) return;
-
-    const timers = notifications.map((n) =>
-      setTimeout(() => removeTransaction(n.id), AUTO_DISMISS_MS)
-    );
-
-    return () => timers.forEach(clearTimeout);
-  }, [notifications, removeTransaction]);
 
   if (notifications.length === 0) return null;
 
