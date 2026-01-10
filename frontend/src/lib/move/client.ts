@@ -10,11 +10,11 @@ const MOVEMENT_TESTNET_CONFIG = {
   name: 'Movement Testnet',
   chainId: 177,
   rpcUrl: 'https://testnet.movementnetwork.xyz/v1',
-  indexerUrl: 'https://indexer.testnet.movementnetwork.xyz/v1/graphql',
+  indexerUrl: 'https://hasura.testnet.movementnetwork.xyz/v1/graphql',
 };
 
 // Contract address
-const CONTRACT_ADDRESS = '0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e';
+const CONTRACT_ADDRESS = '0x7e776761849d04762cd5c9a0edf1a27ca8516374580688d29e178cd321eeb152';
 
 // Initialize Aptos client for Movement
 const config = new AptosConfig({

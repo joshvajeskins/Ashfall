@@ -4,7 +4,7 @@ version = "1.0.0"
 authors = []
 
 [addresses]
-ashfall = "0xf913a8d36a166d9a048b11eeaf902f71bdfba8c8931c351800b145f365f36c8e"
+ashfall = "0x7e776761849d04762cd5c9a0edf1a27ca8516374580688d29e178cd321eeb152"
 
 [dev-addresses]
 
