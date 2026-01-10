@@ -102,6 +102,9 @@ export const GAME_EVENTS = {
   ENEMY_KILLED: 'enemy:killed',
   ENEMY_ENCOUNTERED: 'enemy:encountered',
 
+  // Character events
+  LEVEL_UP: 'character:levelUp',
+
   // Death events
   DEATH_SEQUENCE_START: 'death:sequenceStart',
   DEATH_CHAIN_PENDING: 'death:chainPending',

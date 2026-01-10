@@ -59,10 +59,14 @@ export class DungeonScene extends Phaser.Scene {
     super({ key: 'DungeonScene' });
   }
 
-  init(data: { character: Character; dungeonLayout?: DungeonLayout; floor?: number; roomId?: number }): void {
+  private levelUpHandler!: () => void;
+  private entryDirection: string | null = null;
+
+  init(data: { character: Character; dungeonLayout?: DungeonLayout; floor?: number; roomId?: number; entryDirection?: string }): void {
     this.character = data.character;
     this.currentFloor = data.floor ?? 1;
     this.currentRoomId = data.roomId ?? 0;
+    this.entryDirection = data.entryDirection ?? null;
     this.enemies = [];
     this.items = [];
     this.doorZones = [];
@@ -73,6 +77,12 @@ export class DungeonScene extends Phaser.Scene {
     } else {
       const generator = new DungeonGenerator(Date.now());
       this.dungeonLayout = generator.generate();
+    }
+  }
+
+  shutdown(): void {
+    if (this.levelUpHandler) {
+      gameEvents.off(GAME_EVENTS.LEVEL_UP, this.levelUpHandler);
     }
   }
 
@@ -92,6 +102,10 @@ export class DungeonScene extends Phaser.Scene {
 
     // Fade in from black
     this.transitions.fadeIn(300);
+
+    // Listen for level up events
+    this.levelUpHandler = () => this.showLevelUpEffect();
+    gameEvents.on(GAME_EVENTS.LEVEL_UP, this.levelUpHandler);
 
     gameEvents.emit(GAME_EVENTS.SCENE_READY, 'DungeonScene');
     gameEvents.emit(GAME_EVENTS.ROOM_ENTER, { floor: this.currentFloor, roomId: this.currentRoomId });
@@ -163,9 +177,39 @@ export class DungeonScene extends Phaser.Scene {
 
   private createPlayer(): void {
     const { width, height } = this.currentRoom;
-    const startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
-    const startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
     const playerClass = this.character.class.toLowerCase();
+
+    // Calculate spawn position based on entry direction
+    // Spawn near the door the player came through
+    let startX: number;
+    let startY: number;
+
+    switch (this.entryDirection) {
+      case 'north':
+        // Came through north door -> spawn near north (top)
+        startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
+        startY = 2 * TILE_SIZE + TILE_SIZE / 2;
+        break;
+      case 'south':
+        // Came through south door -> spawn near south (bottom)
+        startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
+        startY = (height - 2) * TILE_SIZE + TILE_SIZE / 2;
+        break;
+      case 'east':
+        // Came through east door -> spawn near east (right)
+        startX = (width - 2) * TILE_SIZE + TILE_SIZE / 2;
+        startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
+        break;
+      case 'west':
+        // Came through west door -> spawn near west (left)
+        startX = 2 * TILE_SIZE + TILE_SIZE / 2;
+        startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
+        break;
+      default:
+        // First room or no entry direction - spawn in center
+        startX = Math.floor(width / 2) * TILE_SIZE + TILE_SIZE / 2;
+        startY = Math.floor(height / 2) * TILE_SIZE + TILE_SIZE / 2;
+    }
 
     // Always use static sprite - force exact tile size
     const playerTexture = `player-${playerClass}`;
@@ -488,18 +532,35 @@ export class DungeonScene extends Phaser.Scene {
       if (Phaser.Math.Distance.Between(x, y, zone.x, zone.y) < TILE_SIZE) {
         if (zone.getData('isFloorExit')) { this.nextFloor(); return; }
         const targetId = zone.getData('targetRoomId');
-        if (typeof targetId === 'number') { this.transitionToRoom(targetId); return; }
+        const direction = zone.getData('direction') as string;
+        if (typeof targetId === 'number') { this.transitionToRoom(targetId, direction); return; }
       }
     }
   }
 
-  private transitionToRoom(targetRoomId: number): void {
+  private transitionToRoom(targetRoomId: number, exitDirection: string): void {
     if (!this.currentRoom.cleared && this.currentRoom.type !== 'start') return;
     this.isTransitioning = true;
     gameEvents.emit(GAME_EVENTS.ROOM_TRANSITION, { from: this.currentRoomId, to: targetRoomId });
     this.cameras.main.fadeOut(200, 0, 0, 0);
+
+    // Entry direction is opposite of exit direction
+    const entryDirectionMap: Record<string, string> = {
+      north: 'south',
+      south: 'north',
+      east: 'west',
+      west: 'east',
+    };
+    const entryDirection = entryDirectionMap[exitDirection] || null;
+
     this.time.delayedCall(200, () => {
-      this.scene.restart({ character: this.character, dungeonLayout: this.dungeonLayout, floor: this.currentFloor, roomId: targetRoomId });
+      this.scene.restart({
+        character: this.character,
+        dungeonLayout: this.dungeonLayout,
+        floor: this.currentFloor,
+        roomId: targetRoomId,
+        entryDirection,
+      });
     });
   }
 
@@ -572,6 +633,7 @@ export class DungeonScene extends Phaser.Scene {
         // Visual/audio feedback immediately (transaction in background)
         soundManager.play('itemPickup');
         this.particles.itemPickup({ x: item.x, y: item.y });
+        this.playVFXMagic(item.x, item.y, 0xffdd44); // Golden glow for item pickup
         this.rarityEffects.removeEffect(item);
         gameEvents.emit(GAME_EVENTS.ITEM_PICKUP, itemData);
         item.destroy();
@@ -645,5 +707,34 @@ export class DungeonScene extends Phaser.Scene {
     this.time.delayedCall(2000, () => {
       this.transitionToVictory();
     });
+  }
+
+  private playVFXMagic(x: number, y: number, tint: number = 0xffffff): void {
+    if (!this.textures.exists('vfx-magic')) return;
+
+    const vfx = this.add.image(x, y, 'vfx-magic')
+      .setDisplaySize(80, 80)
+      .setTint(tint)
+      .setAlpha(0.8)
+      .setDepth(50);
+
+    // Animate: scale up and fade out with rotation
+    this.tweens.add({
+      targets: vfx,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      alpha: 0,
+      angle: 180,
+      duration: 600,
+      ease: 'Power2',
+      onComplete: () => vfx.destroy()
+    });
+  }
+
+  // Called from React when player levels up
+  showLevelUpEffect(): void {
+    soundManager.play('levelUp');
+    this.playVFXMagic(this.player.x, this.player.y, 0x44ff88);
+    this.cameras.main.flash(300, 255, 255, 200, true);
   }
 }
