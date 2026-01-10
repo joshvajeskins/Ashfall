@@ -351,63 +351,71 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private createActionButtons(): void {
-    // Two rows of buttons for more combat options
-    const row1Y = GAME_HEIGHT * 0.78;
-    const row2Y = GAME_HEIGHT * 0.88;
-    const buttonWidth = 90;
-    const startX = GAME_WIDTH * 0.22;
+    // Buttons aligned to the left in a 2x3 grid
+    const startX = 55;
+    const startY = GAME_HEIGHT * 0.72;
+    const buttonSize = 50;
+    const gap = 8;
 
-    // Row 1: Attack, Heavy Attack, Defend
-    const row1Actions = [
-      { label: 'Attack', action: () => this.playerAttack(), mana: 0 },
-      { label: 'Heavy', action: () => this.playerHeavyAttack(), mana: MANA_COSTS.HEAVY_ATTACK },
-      { label: 'Defend', action: () => this.playerDefend(), mana: 0 },
+    // Action definitions with icons
+    const actions = [
+      { label: 'Attack', icon: 'item-sword', action: () => this.playerAttack(), mana: 0, color: 0xff6644 },
+      { label: 'Heavy', icon: 'item-sword', action: () => this.playerHeavyAttack(), mana: MANA_COSTS.HEAVY_ATTACK, color: 0xff4444 },
+      { label: 'Defend', icon: 'item-shield', action: () => this.playerDefend(), mana: 0, color: 0x4488ff },
+      { label: 'Heal', icon: 'item-potion', action: () => this.playerHeal(), mana: MANA_COSTS.HEAL, color: 0x44ff44 },
+      { label: 'Flee', icon: 'item-ring', action: () => this.playerFlee(), mana: 0, color: 0xaaaaaa },
     ];
 
-    // Row 2: Heal, Flee
-    const row2Actions = [
-      { label: 'Heal', action: () => this.playerHeal(), mana: MANA_COSTS.HEAL },
-      { label: 'Flee', action: () => this.playerFlee(), mana: 0 },
-    ];
-
-    row1Actions.forEach((btn, i) => {
-      const x = startX + i * (buttonWidth + 20);
-      const label = btn.mana > 0 ? `${btn.label} (${btn.mana})` : btn.label;
-      const container = this.createButton(x, row1Y, label, btn.action, buttonWidth);
-      this.actionButtons.push(container);
-    });
-
-    row2Actions.forEach((btn, i) => {
-      const x = startX + 60 + i * (buttonWidth + 20);
-      const label = btn.mana > 0 ? `${btn.label} (${btn.mana})` : btn.label;
-      const container = this.createButton(x, row2Y, label, btn.action, buttonWidth);
+    actions.forEach((btn, i) => {
+      const col = i % 3;
+      const row = Math.floor(i / 3);
+      const x = startX + col * (buttonSize + gap);
+      const y = startY + row * (buttonSize + gap + 16);
+      const container = this.createIconButton(x, y, btn.label, btn.icon, btn.action, btn.mana, btn.color, buttonSize);
       this.actionButtons.push(container);
     });
   }
 
-  private createButton(x: number, y: number, label: string, onClick: () => void, width: number = 140): Phaser.GameObjects.Container {
+  private createIconButton(
+    x: number, y: number, label: string, iconKey: string,
+    onClick: () => void, mana: number, color: number, size: number
+  ): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
-    const w = width, h = 40;
+
+    // Button background
     const bg = this.add.graphics();
-    this.drawButton(bg, w, h, false);
-    const text = this.add.text(0, 0, label, { fontFamily: 'monospace', fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
-    container.add([bg, text]);
-    container.setInteractive(new Phaser.Geom.Rectangle(-w / 2, -h / 2, w, h), Phaser.Geom.Rectangle.Contains);
-    container.on('pointerover', () => this.drawButton(bg, w, h, true));
-    container.on('pointerout', () => this.drawButton(bg, w, h, false));
+    this.drawIconButton(bg, size, color, false);
+
+    // Icon image
+    const icon = this.add.image(0, -4, iconKey).setDisplaySize(size - 16, size - 16);
+
+    // Label below button
+    const labelText = mana > 0 ? `${label} (${mana})` : label;
+    const text = this.add.text(0, size / 2 + 6, labelText, {
+      fontFamily: 'monospace', fontSize: '9px', color: '#cccccc'
+    }).setOrigin(0.5);
+
+    container.add([bg, icon, text]);
+    container.setData('bg', bg);
+    container.setData('color', color);
+
+    container.setInteractive(new Phaser.Geom.Rectangle(-size / 2, -size / 2, size, size), Phaser.Geom.Rectangle.Contains);
+    container.on('pointerover', () => this.drawIconButton(bg, size, color, true));
+    container.on('pointerout', () => this.drawIconButton(bg, size, color, false));
     container.on('pointerdown', () => {
       soundManager.play('buttonClick');
       onClick();
     });
+
     return container;
   }
 
-  private drawButton(bg: Phaser.GameObjects.Graphics, w: number, h: number, hover: boolean): void {
+  private drawIconButton(bg: Phaser.GameObjects.Graphics, size: number, color: number, hover: boolean): void {
     bg.clear();
-    bg.fillStyle(hover ? 0x555555 : 0x444444, 1);
-    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 8);
-    bg.lineStyle(2, hover ? 0xff8833 : 0xff6600, 1);
-    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 8);
+    bg.fillStyle(hover ? 0x3a3a3a : 0x2a2a2a, 1);
+    bg.fillRoundedRect(-size / 2, -size / 2, size, size, 8);
+    bg.lineStyle(2, hover ? 0xffffff : color, 1);
+    bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 8);
   }
 
   private createTurnIndicator(): void {
@@ -438,17 +446,36 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private createCombatLog(): void {
-    this.add.text(20, 420, 'Combat Log:', { fontFamily: 'monospace', fontSize: '14px', color: '#888888' });
+    // Combat log aligned to the right
+    const logX = GAME_WIDTH - 15;
+    const logY = GAME_HEIGHT * 0.72;
+
+    // Log header with background
+    const logBg = this.add.graphics();
+    logBg.fillStyle(0x1a1a1a, 0.8);
+    logBg.fillRoundedRect(logX - 180, logY - 20, 190, 120, 6);
+    logBg.lineStyle(1, 0x444444, 1);
+    logBg.strokeRoundedRect(logX - 180, logY - 20, 190, 120, 6);
+
+    this.add.text(logX, logY - 8, 'Combat Log', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#888888'
+    }).setOrigin(1, 0);
   }
 
   private addLogMessage(msg: string): void {
-    const y = 440 + this.combatLog.length * 16;
-    if (this.combatLog.length >= 4) {
+    const logX = GAME_WIDTH - 20;
+    const baseY = GAME_HEIGHT * 0.72 + 12;
+    const y = baseY + this.combatLog.length * 18;
+
+    if (this.combatLog.length >= 5) {
       const oldest = this.combatLog.shift();
       oldest?.destroy();
-      this.combatLog.forEach((t, i) => t.setY(440 + i * 16));
+      this.combatLog.forEach((t, i) => t.setY(baseY + i * 18));
     }
-    const text = this.add.text(20, y, msg, { fontFamily: 'monospace', fontSize: '12px', color: '#cccccc' });
+
+    const text = this.add.text(logX, y, msg, {
+      fontFamily: 'monospace', fontSize: '10px', color: '#cccccc'
+    }).setOrigin(1, 0);
     this.combatLog.push(text);
   }
 

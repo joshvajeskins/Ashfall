@@ -147,6 +147,9 @@ export function useDungeonTransaction() {
 
       try {
         const result = await completeBossFloor(movementWallet.address, xpEarned);
+        if (result.success && result.txHash) {
+          addTransaction('Boss Defeated', result.txHash);
+        }
         return result;
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Failed to complete boss';
@@ -156,7 +159,7 @@ export function useDungeonTransaction() {
         setIsPending(false);
       }
     },
-    [movementWallet]
+    [movementWallet, addTransaction]
   );
 
   /**
@@ -173,6 +176,9 @@ export function useDungeonTransaction() {
 
     try {
       const result = await reportPlayerDeath(movementWallet.address);
+      if (result.success && result.txHash) {
+        addTransaction('Player Died', result.txHash);
+      }
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to process death';
@@ -181,7 +187,7 @@ export function useDungeonTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet]);
+  }, [movementWallet, addTransaction]);
 
   /**
    * Exit dungeon successfully - Server-side (invisible wallet)
@@ -197,6 +203,9 @@ export function useDungeonTransaction() {
 
     try {
       const result = await exitDungeonSuccess(movementWallet.address);
+      if (result.success && result.txHash) {
+        addTransaction('Exited Dungeon', result.txHash);
+      }
       return result;
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to exit dungeon';
@@ -205,7 +214,7 @@ export function useDungeonTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [movementWallet]);
+  }, [movementWallet, addTransaction]);
 
   /**
    * Initialize stash - User wallet signs (gas sponsored)
@@ -260,6 +269,7 @@ export function useDungeonTransaction() {
       }
 
       const result = await submitResponse.json();
+      addTransaction('Stash Initialized', result.hash);
       return { success: true, txHash: result.hash };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Failed to init stash';
@@ -268,7 +278,7 @@ export function useDungeonTransaction() {
     } finally {
       setIsPending(false);
     }
-  }, [authenticated, movementWallet, signRawHash]);
+  }, [authenticated, movementWallet, signRawHash, addTransaction]);
 
   return {
     enterDungeon,
