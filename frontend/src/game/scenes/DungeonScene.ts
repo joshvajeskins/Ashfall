@@ -175,8 +175,15 @@ export class DungeonScene extends Phaser.Scene {
   }
 
   private scaleAnimationToTile(): void {
-    // Animation sprites need to be larger and offset up (feet at bottom)
-    const animSize = TILE_SIZE * 1.4;
+    // Different classes have different animation sprite sizes
+    const playerClass = this.character.class.toLowerCase();
+    const classMultipliers: Record<string, number> = {
+      warrior: 1.4,
+      mage: 1.0,
+      rogue: 1.0,
+    };
+    const multiplier = classMultipliers[playerClass] ?? 1.0;
+    const animSize = TILE_SIZE * multiplier;
     this.player.setDisplaySize(animSize, animSize);
     // Offset Y up to keep character in box (feet at bottom of sprite)
     this.player.setOrigin(0.5, 0.7);
