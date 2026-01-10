@@ -162,13 +162,35 @@ export class CombatScene extends Phaser.Scene {
       const { action, error } = data as { action: string; error: string };
       console.error(`[CombatScene] TX Failed: ${action}`, error);
 
-      // Special case: enemy_attack failed with E_COMBAT_ENDED means enemy was already killed
-      // This happens when local damage calc didn't match on-chain (enemy died on-chain)
-      if (action === 'enemy_attack' && error.includes('COMBAT_ENDED')) {
-        console.log('[CombatScene] Combat already ended on-chain - enemy was killed');
+      // Handle enemy_attack failures specially
+      if (action === 'enemy_attack') {
         this.isWaitingForTx = false;
         this.hideTxStatus();
-        this.enemyDefeated();
+
+        // E_COMBAT_ENDED means enemy was already killed
+        if (error.includes('COMBAT_ENDED')) {
+          console.log('[CombatScene] Combat already ended on-chain - enemy was killed');
+          this.enemyDefeated();
+          return;
+        }
+
+        // E_NOT_ENEMY_TURN means on-chain it's player's turn - sync state
+        if (error.includes('NOT_ENEMY_TURN') || error.includes('NOT_PLAYER_TURN')) {
+          console.log('[CombatScene] Turn mismatch - syncing to player turn');
+          this.currentTurn = 'player';
+          this.turnText.setText('YOUR TURN');
+          this.isAnimating = false;
+          this.setButtonsEnabled(true);
+          return;
+        }
+
+        // Other enemy attack errors - switch to player turn to allow retry
+        console.log('[CombatScene] Enemy attack failed, switching to player turn');
+        this.currentTurn = 'player';
+        this.turnText.setText('YOUR TURN');
+        this.isAnimating = false;
+        this.setButtonsEnabled(true);
+        this.showTxError(error);
         return;
       }
 
@@ -800,6 +822,12 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private requestEnemyAttack(): void {
+    // Prevent duplicate requests
+    if (this.isWaitingForTx) {
+      console.log('[CombatScene] Already waiting for tx, skipping enemy attack request');
+      return;
+    }
+
     this.isWaitingForTx = true;
     this.showTxStatus('Enemy attacking on-chain...');
 
