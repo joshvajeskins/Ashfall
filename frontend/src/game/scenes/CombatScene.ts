@@ -176,6 +176,7 @@ export class CombatScene extends Phaser.Scene {
 
   private onCombatStarted(): void {
     this.isWaitingForTx = false;
+    this.turnText.setText('YOUR TURN');
     this.addLogMessage(`Combat with ${this.enemy.name} begins!`);
     this.setButtonsEnabled(true);
     gameEvents.emit(GAME_EVENTS.COMBAT_START, { enemy: this.enemy });
