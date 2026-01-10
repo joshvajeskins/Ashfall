@@ -11,6 +11,7 @@ import {
   executeEnemyAttack,
   ENEMY_TYPES,
 } from '@/lib/move/combatService';
+import { combatService } from '@/lib/move/client';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -23,6 +24,13 @@ export interface CombatResult {
   success: boolean;
   txHash?: string;
   error?: string;
+  // Combat state from chain (populated after attacks)
+  combatState?: {
+    enemyHealth: number;
+    enemyMaxHealth: number;
+    isActive: boolean;
+    enemyKilled: boolean;
+  };
 }
 
 /**
@@ -151,7 +159,20 @@ export function useCombatTransaction() {
 
       const result = await submitResponse.json();
       addTransaction('Player Attack', result.hash);
-      return { success: true, txHash: result.hash };
+
+      // Fetch combat state from chain to get actual enemy health
+      try {
+        const [enemyHealth, enemyMaxHealth, , isActive] = await combatService.getCombatState(movementWallet.address);
+        const enemyKilled = !isActive || enemyHealth === 0;
+        return {
+          success: true,
+          txHash: result.hash,
+          combatState: { enemyHealth, enemyMaxHealth, isActive, enemyKilled },
+        };
+      } catch {
+        // If we can't fetch state, return without it
+        return { success: true, txHash: result.hash };
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Attack failed';
       setLastError(errorMsg);
@@ -355,7 +376,19 @@ export function useCombatTransaction() {
 
       const result = await submitResponse.json();
       addTransaction('Heavy Attack', result.hash);
-      return { success: true, txHash: result.hash };
+
+      // Fetch combat state from chain to get actual enemy health
+      try {
+        const [enemyHealth, enemyMaxHealth, , isActive] = await combatService.getCombatState(movementWallet.address);
+        const enemyKilled = !isActive || enemyHealth === 0;
+        return {
+          success: true,
+          txHash: result.hash,
+          combatState: { enemyHealth, enemyMaxHealth, isActive, enemyKilled },
+        };
+      } catch {
+        return { success: true, txHash: result.hash };
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Heavy attack failed';
       setLastError(errorMsg);

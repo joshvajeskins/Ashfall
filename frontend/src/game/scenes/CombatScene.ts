@@ -80,6 +80,9 @@ export class CombatScene extends Phaser.Scene {
   private txSuccessHandler!: (...args: unknown[]) => void;
   private txFailedHandler!: (...args: unknown[]) => void;
 
+  // On-chain combat state (updated after each attack)
+  private onChainCombatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean };
+
   constructor() {
     super({ key: 'CombatScene' });
   }
@@ -122,8 +125,12 @@ export class CombatScene extends Phaser.Scene {
 
   private setupTxEventListeners(): void {
     this.txSuccessHandler = (data: unknown) => {
-      const { action } = data as { action: string; txHash?: string };
-      console.log(`[CombatScene] TX Success: ${action}`);
+      const { action, combatState } = data as {
+        action: string;
+        txHash?: string;
+        combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean };
+      };
+      console.log(`[CombatScene] TX Success: ${action}`, combatState ? `enemyKilled: ${combatState.enemyKilled}` : '');
       this.hideTxStatus();
 
       switch (action) {
@@ -131,10 +138,10 @@ export class CombatScene extends Phaser.Scene {
           this.onCombatStarted();
           break;
         case 'player_attack':
-          this.onPlayerAttackConfirmed();
+          this.onPlayerAttackConfirmed(combatState);
           break;
         case 'player_heavy_attack':
-          this.onPlayerHeavyAttackConfirmed();
+          this.onPlayerHeavyAttackConfirmed(combatState);
           break;
         case 'player_defend':
           this.onPlayerDefendConfirmed();
@@ -563,13 +570,20 @@ export class CombatScene extends Phaser.Scene {
     gameEvents.emit(GAME_EVENTS.PLAYER_ATTACK_REQUEST);
   }
 
-  private onPlayerAttackConfirmed(): void {
+  private onPlayerAttackConfirmed(combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean }): void {
     this.isWaitingForTx = false;
+    this.onChainCombatState = combatState; // Store on-chain state for later use
     soundManager.play('attack');
 
     // Calculate damage locally for animation (on-chain has authoritative state)
     const result = this.calculateDamage(this.character, this.enemy);
-    this.enemy.health -= result.damage;
+
+    // Use on-chain enemy health if available, otherwise use local calculation
+    if (combatState) {
+      this.enemy.health = combatState.enemyHealth;
+    } else {
+      this.enemy.health -= result.damage;
+    }
 
     const critText = result.isCrit ? ' CRITICAL!' : '';
     this.addLogMessage(`You dealt ${result.damage} damage!${critText}`);
@@ -616,7 +630,9 @@ export class CombatScene extends Phaser.Scene {
       this.playerSprite.setTexture(`player-${playerClass}`);
       this.resetPlayerToStatic();
       this.updateHealthBars();
-      this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
+      // Use on-chain state to determine if enemy was killed (authoritative)
+      const enemyKilled = this.onChainCombatState?.enemyKilled ?? this.enemy.health <= 0;
+      enemyKilled ? this.enemyDefeated() : this.switchTurn();
     });
   }
 
@@ -640,8 +656,9 @@ export class CombatScene extends Phaser.Scene {
     gameEvents.emit(GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST);
   }
 
-  private onPlayerHeavyAttackConfirmed(): void {
+  private onPlayerHeavyAttackConfirmed(combatState?: { enemyHealth: number; enemyMaxHealth: number; isActive: boolean; enemyKilled: boolean }): void {
     this.isWaitingForTx = false;
+    this.onChainCombatState = combatState; // Store on-chain state for later use
     soundManager.play('attack');
 
     // Deduct mana locally
@@ -650,7 +667,13 @@ export class CombatScene extends Phaser.Scene {
     // Calculate heavy damage (1.5x)
     const result = this.calculateDamage(this.character, this.enemy);
     const heavyDamage = Math.floor(result.damage * 1.5);
-    this.enemy.health -= heavyDamage;
+
+    // Use on-chain enemy health if available, otherwise use local calculation
+    if (combatState) {
+      this.enemy.health = combatState.enemyHealth;
+    } else {
+      this.enemy.health -= heavyDamage;
+    }
 
     this.addLogMessage(`HEAVY ATTACK! Dealt ${heavyDamage} damage! (-${MANA_COSTS.HEAVY_ATTACK} mana)`);
 
@@ -677,7 +700,9 @@ export class CombatScene extends Phaser.Scene {
       this.playerSprite.setTexture(`player-${playerClass}`);
       this.resetPlayerToStatic();
       this.updateHealthBars();
-      this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
+      // Use on-chain state to determine if enemy was killed (authoritative)
+      const enemyKilled = this.onChainCombatState?.enemyKilled ?? this.enemy.health <= 0;
+      enemyKilled ? this.enemyDefeated() : this.switchTurn();
     });
   }
 
