@@ -63,16 +63,14 @@ function AuthenticatedHome() {
           height: '100%',
           display: 'flex',
           flexDirection: 'column',
-          backgroundImage: 'url(/assets/backgrounds/battle.png)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundColor: '#0a0a0a',
         }}
       >
         <Header />
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <GameCanvas onReady={() => console.log('Game ready')} />
         </div>
-        <div style={{ padding: 16, display: 'flex', justifyContent: 'center' }}>
+        <div style={{ padding: 12, display: 'flex', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.8)' }}>
           <ImageButton
             variant="secondary"
             size="md"
@@ -209,7 +207,9 @@ function AuthenticatedHome() {
       {/* Footer */}
       <div
         style={{
-          padding: 12,
+          paddingTop: 12,
+          paddingLeft: 12,
+          paddingRight: 12,
           paddingBottom: 24,
           textAlign: 'center',
           fontSize: 14,

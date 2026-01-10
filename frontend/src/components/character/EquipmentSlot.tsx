@@ -12,7 +12,7 @@ interface EquipmentSlotProps {
 
 const SLOT_IMAGES: Record<string, string> = {
   weapon: '/assets/items/sword.png',
-  armor: '/assets/items/armor.png',
+  armor: '/assets/items/armour.png',
   accessory: '/assets/items/ring.png',
 };
 

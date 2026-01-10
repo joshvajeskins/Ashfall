@@ -32,8 +32,62 @@ export interface EnemyAttackResponse {
   txHash?: string;
   damage?: number;
   playerKilled?: boolean;
+  newIntent?: number;
   error?: string;
 }
+
+export interface PlayerDefendResponse {
+  success: boolean;
+  txHash?: string;
+  error?: string;
+}
+
+export interface PlayerHeavyAttackResponse {
+  success: boolean;
+  txHash?: string;
+  damage?: number;
+  wasCrit?: boolean;
+  enemyKilled?: boolean;
+  manaUsed?: number;
+  error?: string;
+}
+
+export interface PlayerHealResponse {
+  success: boolean;
+  txHash?: string;
+  amountHealed?: number;
+  newHealth?: number;
+  manaUsed?: number;
+  error?: string;
+}
+
+// Enemy intent types
+export const ENEMY_INTENT = {
+  ATTACK: 0,
+  HEAVY_ATTACK: 1,
+  DEFEND: 2,
+} as const;
+
+export type EnemyIntentType = typeof ENEMY_INTENT[keyof typeof ENEMY_INTENT];
+
+export function getIntentLabel(intent: number): string {
+  switch (intent) {
+    case ENEMY_INTENT.ATTACK:
+      return '⚔️ Attack';
+    case ENEMY_INTENT.HEAVY_ATTACK:
+      return '💥 Heavy Attack';
+    case ENEMY_INTENT.DEFEND:
+      return '🛡️ Defend';
+    default:
+      return '❓ Unknown';
+  }
+}
+
+// Mana costs
+export const MANA_COSTS = {
+  HEAVY_ATTACK: 20,
+  HEAL: 30,
+} as const;
 
 // Enemy type mapping
 export const ENEMY_TYPES = {
@@ -191,6 +245,135 @@ export async function executeEnemyAttack(
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to execute enemy attack',
+    };
+  }
+}
+
+/**
+ * Build player defend transaction - Returns data for signing
+ * No mana cost, reduces next incoming damage by 50%
+ */
+export async function buildPlayerDefendTransaction(
+  playerAddress: string
+): Promise<{
+  success: boolean;
+  hash?: string;
+  rawTxnHex?: string;
+  feePayerAddress?: string;
+  feePayerAuthenticatorHex?: string;
+  sponsored?: boolean;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE}/api/sponsor-transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: playerAddress,
+        function: `${CONTRACT_ADDRESS}::combat::player_defend`,
+        typeArguments: [],
+        functionArguments: [],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, ...data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to build defend transaction',
+    };
+  }
+}
+
+/**
+ * Build player heavy attack transaction - Returns data for signing
+ * Costs 20 mana, deals 1.5x damage
+ */
+export async function buildPlayerHeavyAttackTransaction(
+  playerAddress: string
+): Promise<{
+  success: boolean;
+  hash?: string;
+  rawTxnHex?: string;
+  feePayerAddress?: string;
+  feePayerAuthenticatorHex?: string;
+  sponsored?: boolean;
+  error?: string;
+}> {
+  try {
+    // Generate a random seed for crit calculation
+    const seed = Math.floor(Math.random() * 1000000);
+
+    const response = await fetch(`${API_BASE}/api/sponsor-transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: playerAddress,
+        function: `${CONTRACT_ADDRESS}::combat::player_heavy_attack`,
+        typeArguments: [],
+        functionArguments: [seed],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, ...data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to build heavy attack transaction',
+    };
+  }
+}
+
+/**
+ * Build player heal transaction - Returns data for signing
+ * Costs 30 mana, heals 30% of max HP
+ */
+export async function buildPlayerHealTransaction(
+  playerAddress: string
+): Promise<{
+  success: boolean;
+  hash?: string;
+  rawTxnHex?: string;
+  feePayerAddress?: string;
+  feePayerAuthenticatorHex?: string;
+  sponsored?: boolean;
+  error?: string;
+}> {
+  try {
+    const response = await fetch(`${API_BASE}/api/sponsor-transaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sender: playerAddress,
+        function: `${CONTRACT_ADDRESS}::combat::player_heal`,
+        typeArguments: [],
+        functionArguments: [],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error || `HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    return { success: true, ...data };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to build heal transaction',
     };
   }
 }

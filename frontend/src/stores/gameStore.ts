@@ -35,6 +35,7 @@ interface GameState {
   transferPendingToInventory: () => void;
   incrementKills: () => void;
   die: () => void;
+  deleteCharacter: () => void;
   reset: () => void;
 }
 
@@ -167,6 +168,18 @@ export const useGameStore = create<GameState>((set) => ({
       dungeonLayout: null,
       currentRoomId: 0,
     })),
+
+  deleteCharacter: () =>
+    set({
+      character: null,
+      inventory: [],
+      stash: [],
+      pendingLoot: [],
+      isInDungeon: false,
+      currentRun: null,
+      dungeonLayout: null,
+      currentRoomId: 0,
+    }),
 
   reset: () => set(initialState),
 }));

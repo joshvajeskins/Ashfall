@@ -37,7 +37,7 @@ const SLOT_SIZES: Record<'sm' | 'md' | 'lg' | 'xl', number> = {
 // Map item types to their image paths
 const TYPE_IMAGES: Record<string, string> = {
   Weapon: '/assets/items/sword.png',
-  Armor: '/assets/items/armor.png',
+  Armor: '/assets/items/armour.png',
   Accessory: '/assets/items/ring.png',
   Consumable: '/assets/items/potion.png',
 };
@@ -48,7 +48,7 @@ function getItemImage(item: Item): string {
   if (name.includes('gold') || name.includes('coin')) return '/assets/items/gold.png';
   if (name.includes('potion')) return '/assets/items/potion.png';
   if (name.includes('ring')) return '/assets/items/ring.png';
-  if (name.includes('armor')) return '/assets/items/armor.png';
+  if (name.includes('armor') || name.includes('armour')) return '/assets/items/armour.png';
   return TYPE_IMAGES[item.type] || '/assets/items/sword.png';
 }
 

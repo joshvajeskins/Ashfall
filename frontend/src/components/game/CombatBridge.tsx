@@ -22,6 +22,9 @@ export function CombatBridge() {
     initiateCombat,
     playerAttack,
     playerFlee,
+    playerDefend,
+    playerHeavyAttack,
+    playerHeal,
     triggerEnemyAttack,
     pickupItem,
     isPending,
@@ -106,6 +109,63 @@ export function CombatBridge() {
     }
   }, [triggerEnemyAttack]);
 
+  // Handle player defend request
+  const handlePlayerDefendRequest = useCallback(async () => {
+    console.log('[CombatBridge] Player defending on-chain');
+
+    const result = await playerDefend();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'player_defend',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'player_defend',
+        error: result.error,
+      });
+    }
+  }, [playerDefend]);
+
+  // Handle player heavy attack request
+  const handlePlayerHeavyAttackRequest = useCallback(async () => {
+    console.log('[CombatBridge] Player heavy attacking on-chain');
+
+    const result = await playerHeavyAttack();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'player_heavy_attack',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'player_heavy_attack',
+        error: result.error,
+      });
+    }
+  }, [playerHeavyAttack]);
+
+  // Handle player heal request
+  const handlePlayerHealRequest = useCallback(async () => {
+    console.log('[CombatBridge] Player healing on-chain');
+
+    const result = await playerHeal();
+
+    if (result.success) {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
+        action: 'player_heal',
+        txHash: result.txHash,
+      });
+    } else {
+      gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
+        action: 'player_heal',
+        error: result.error,
+      });
+    }
+  }, [playerHeal]);
+
   // Handle item pickup request
   const handleItemPickupRequest = useCallback(
     async (data: {
@@ -159,6 +219,18 @@ export function CombatBridge() {
       handleEnemyAttackRequest as (...args: unknown[]) => void
     );
     gameEvents.on(
+      GAME_EVENTS.PLAYER_DEFEND_REQUEST,
+      handlePlayerDefendRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST,
+      handlePlayerHeavyAttackRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
+      GAME_EVENTS.PLAYER_HEAL_REQUEST,
+      handlePlayerHealRequest as (...args: unknown[]) => void
+    );
+    gameEvents.on(
       GAME_EVENTS.ITEM_PICKUP_REQUEST,
       handleItemPickupRequest as (...args: unknown[]) => void
     );
@@ -181,6 +253,18 @@ export function CombatBridge() {
         handleEnemyAttackRequest as (...args: unknown[]) => void
       );
       gameEvents.off(
+        GAME_EVENTS.PLAYER_DEFEND_REQUEST,
+        handlePlayerDefendRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST,
+        handlePlayerHeavyAttackRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
+        GAME_EVENTS.PLAYER_HEAL_REQUEST,
+        handlePlayerHealRequest as (...args: unknown[]) => void
+      );
+      gameEvents.off(
         GAME_EVENTS.ITEM_PICKUP_REQUEST,
         handleItemPickupRequest as (...args: unknown[]) => void
       );
@@ -190,6 +274,9 @@ export function CombatBridge() {
     handlePlayerAttackRequest,
     handlePlayerFleeRequest,
     handleEnemyAttackRequest,
+    handlePlayerDefendRequest,
+    handlePlayerHeavyAttackRequest,
+    handlePlayerHealRequest,
     handleItemPickupRequest,
   ]);
 

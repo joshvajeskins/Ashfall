@@ -7,6 +7,19 @@ import type { Character, Enemy, DungeonLayout, Item } from '@/types';
 
 type CombatTurn = 'player' | 'enemy';
 
+// Enemy intent types matching contract
+const ENEMY_INTENT = {
+  ATTACK: 0,
+  HEAVY_ATTACK: 1,
+  DEFEND: 2,
+} as const;
+
+// Mana costs matching contract
+const MANA_COSTS = {
+  HEAVY_ATTACK: 20,
+  HEAL: 30,
+} as const;
+
 interface CombatResult {
   damage: number;
   isCrit: boolean;
@@ -54,6 +67,11 @@ export class CombatScene extends Phaser.Scene {
   private particles!: ParticleEffects;
   private screenEffects!: ScreenEffects;
 
+  // Enemy intent display
+  private enemyIntent: number = ENEMY_INTENT.ATTACK;
+  private enemyIntentText!: Phaser.GameObjects.Text;
+  private isPlayerDefending = false;
+
   // Transaction event handlers
   private txSuccessHandler!: (...args: unknown[]) => void;
   private txFailedHandler!: (...args: unknown[]) => void;
@@ -78,6 +96,7 @@ export class CombatScene extends Phaser.Scene {
     this.createRedFlash();
     this.createCombatants();
     this.createHealthBars();
+    this.createEnemyIntentDisplay();
     this.createActionButtons();
     this.createTurnIndicator();
     this.createTxStatusIndicator();
@@ -106,6 +125,15 @@ export class CombatScene extends Phaser.Scene {
           break;
         case 'player_attack':
           this.onPlayerAttackConfirmed();
+          break;
+        case 'player_heavy_attack':
+          this.onPlayerHeavyAttackConfirmed();
+          break;
+        case 'player_defend':
+          this.onPlayerDefendConfirmed();
+          break;
+        case 'player_heal':
+          this.onPlayerHealConfirmed();
           break;
         case 'enemy_attack':
           this.onEnemyAttackConfirmed();
@@ -182,47 +210,46 @@ export class CombatScene extends Phaser.Scene {
     this.redFlash.setDepth(100);
   }
 
+  // Combat positions based on canvas size
+  private get PLAYER_X() { return GAME_WIDTH * 0.25; }
+  private get ENEMY_X() { return GAME_WIDTH * 0.75; }
+  private get COMBATANT_Y() { return GAME_HEIGHT * 0.5; }
+  private get LABEL_Y() { return GAME_HEIGHT * 0.28; }
+
   private createCombatants(): void {
     const playerClass = this.character.class.toLowerCase();
-    const playerIdleKey = `${playerClass}-idle`;
-    const ANIM_SCALE = 3;
     const STATIC_SCALE = 0.22;
-    const BOSS_ANIM_SCALE = 4.5;
     const BOSS_STATIC_SCALE = 0.32;
 
-    if (this.textures.exists(playerIdleKey)) {
-      this.playerSprite = this.add.sprite(200, 300, playerIdleKey).setScale(ANIM_SCALE).setDepth(10);
-      this.playerSprite.play(playerIdleKey);
-    } else {
-      const playerTexture = `player-${playerClass}`;
-      this.playerSprite = this.add.sprite(200, 300, playerTexture).setScale(STATIC_SCALE).setDepth(10);
-    }
+    // Always use static sprite for idle state
+    const playerTexture = `player-${playerClass}`;
+    this.playerSprite = this.add.sprite(this.PLAYER_X, this.COMBATANT_Y, playerTexture).setScale(STATIC_SCALE).setDepth(10);
 
     const enemyType = this.getEnemyType();
-    const enemyIdleKey = `${enemyType}-idle`;
-    this.enemyHasAnimations = this.textures.exists(enemyIdleKey);
+    // Check if enemy has combat animations (attack, hit, death) - not idle
+    this.enemyHasAnimations = this.textures.exists(`${enemyType}-attack`);
 
-    if (this.enemyHasAnimations) {
-      const scale = this.enemy.isBoss ? BOSS_ANIM_SCALE : ANIM_SCALE;
-      this.enemySprite = this.add.sprite(600, 300, enemyIdleKey).setScale(scale).setDepth(10);
-      this.enemySprite.play(enemyIdleKey);
-    } else {
-      const enemyTexture = this.getEnemyTexture();
-      const scale = this.enemy.isBoss ? BOSS_STATIC_SCALE : STATIC_SCALE;
-      this.enemySprite = this.add.sprite(600, 300, enemyTexture).setScale(scale).setDepth(10);
-    }
+    // Always use static sprite for idle state
+    const enemyTexture = this.getEnemyTexture();
+    const scale = this.enemy.isBoss ? BOSS_STATIC_SCALE : STATIC_SCALE;
+    this.enemySprite = this.add.sprite(this.ENEMY_X, this.COMBATANT_Y, enemyTexture).setScale(scale).setDepth(10);
 
-    this.add.text(200, 170, this.character.class, {
+    this.add.text(this.PLAYER_X, this.LABEL_Y, this.character.class, {
       fontFamily: 'monospace', fontSize: '18px', color: '#4488ff'
     }).setOrigin(0.5);
 
-    this.add.text(600, 170, this.enemy.name, {
+    this.add.text(this.ENEMY_X, this.LABEL_Y, this.enemy.name, {
       fontFamily: 'monospace', fontSize: '18px', color: '#ff4444'
     }).setOrigin(0.5);
   }
 
   private getEnemyType(): string {
     const name = this.enemy.name.toLowerCase();
+    if (name.includes('boss') || name.includes('demon') || name.includes('lord')) return 'boss';
+    if (name.includes('ghoul')) return 'ghoul';
+    if (name.includes('goblin')) return 'goblin';
+    if (name.includes('lich')) return 'lich';
+    if (name.includes('skeleton')) return 'skeleton';
     if (name.includes('vampire')) return 'vampire';
     if (name.includes('zombie')) return 'zombie';
     return '';
@@ -249,54 +276,118 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private updateHealthBars(): void {
-    const barWidth = 150;
+    const barWidth = 120;
     const barHeight = 16;
-    const x = 125;
+    const barY = GAME_HEIGHT * 0.32;
+    const manaY = barY + 20;
+    const playerBarX = this.PLAYER_X - barWidth / 2;
+    const enemyBarX = this.ENEMY_X - barWidth / 2;
 
     this.playerHealthBar.clear();
     this.playerHealthBar.fillStyle(0x222222, 1);
-    this.playerHealthBar.fillRect(x, 195, barWidth, barHeight);
+    this.playerHealthBar.fillRect(playerBarX, barY, barWidth, barHeight);
     const hpPercent = Math.max(0, this.character.health / this.character.maxHealth);
     this.playerHealthBar.fillStyle(hpPercent > 0.3 ? 0x44aa44 : 0xaa4444, 1);
-    this.playerHealthBar.fillRect(x, 195, barWidth * hpPercent, barHeight);
+    this.playerHealthBar.fillRect(playerBarX, barY, barWidth * hpPercent, barHeight);
     this.playerHealthBar.lineStyle(2, 0x666666, 1);
-    this.playerHealthBar.strokeRect(x, 195, barWidth, barHeight);
+    this.playerHealthBar.strokeRect(playerBarX, barY, barWidth, barHeight);
 
     this.playerManaBar.clear();
     this.playerManaBar.fillStyle(0x222222, 1);
-    this.playerManaBar.fillRect(x, 215, barWidth, barHeight - 4);
+    this.playerManaBar.fillRect(playerBarX, manaY, barWidth, barHeight - 4);
     const mpPercent = Math.max(0, this.character.mana / this.character.maxMana);
     this.playerManaBar.fillStyle(0x4444aa, 1);
-    this.playerManaBar.fillRect(x, 215, barWidth * mpPercent, barHeight - 4);
+    this.playerManaBar.fillRect(playerBarX, manaY, barWidth * mpPercent, barHeight - 4);
     this.playerManaBar.lineStyle(1, 0x555555, 1);
-    this.playerManaBar.strokeRect(x, 215, barWidth, barHeight - 4);
+    this.playerManaBar.strokeRect(playerBarX, manaY, barWidth, barHeight - 4);
 
     this.enemyHealthBar.clear();
     this.enemyHealthBar.fillStyle(0x222222, 1);
-    this.enemyHealthBar.fillRect(525, 195, barWidth, barHeight);
+    this.enemyHealthBar.fillRect(enemyBarX, barY, barWidth, barHeight);
     const enemyPercent = Math.max(0, this.enemy.health / this.enemy.maxHealth);
     this.enemyHealthBar.fillStyle(0xaa4444, 1);
-    this.enemyHealthBar.fillRect(525, 195, barWidth * enemyPercent, barHeight);
+    this.enemyHealthBar.fillRect(enemyBarX, barY, barWidth * enemyPercent, barHeight);
     this.enemyHealthBar.lineStyle(2, 0x666666, 1);
-    this.enemyHealthBar.strokeRect(525, 195, barWidth, barHeight);
+    this.enemyHealthBar.strokeRect(enemyBarX, barY, barWidth, barHeight);
+  }
+
+  private createEnemyIntentDisplay(): void {
+    // Show what enemy will do next turn
+    const intentY = GAME_HEIGHT * 0.38;
+    this.add.text(this.ENEMY_X, intentY, 'Next Action:', {
+      fontFamily: 'monospace', fontSize: '12px', color: '#888888'
+    }).setOrigin(0.5);
+
+    this.enemyIntentText = this.add.text(this.ENEMY_X, intentY + 18, this.getIntentLabel(this.enemyIntent), {
+      fontFamily: 'monospace', fontSize: '14px', color: '#ffaa00', fontStyle: 'bold'
+    }).setOrigin(0.5);
+  }
+
+  private getIntentLabel(intent: number): string {
+    switch (intent) {
+      case ENEMY_INTENT.ATTACK:
+        return 'Attack';
+      case ENEMY_INTENT.HEAVY_ATTACK:
+        return 'HEAVY ATTACK!';
+      case ENEMY_INTENT.DEFEND:
+        return 'Defend';
+      default:
+        return '???';
+    }
+  }
+
+  private updateEnemyIntent(newIntent: number): void {
+    this.enemyIntent = newIntent;
+    this.enemyIntentText.setText(this.getIntentLabel(newIntent));
+
+    // Color based on threat level
+    if (newIntent === ENEMY_INTENT.HEAVY_ATTACK) {
+      this.enemyIntentText.setColor('#ff4444'); // Red for heavy attack
+    } else if (newIntent === ENEMY_INTENT.DEFEND) {
+      this.enemyIntentText.setColor('#4488ff'); // Blue for defend
+    } else {
+      this.enemyIntentText.setColor('#ffaa00'); // Orange for normal attack
+    }
   }
 
   private createActionButtons(): void {
-    const buttonY = 520;
-    const actions = [
-      { label: 'Attack', action: () => this.playerAttack() },
-      { label: 'Use Item', action: () => this.playerUseItem() },
-      { label: 'Flee', action: () => this.playerFlee() },
+    // Two rows of buttons for more combat options
+    const row1Y = GAME_HEIGHT * 0.78;
+    const row2Y = GAME_HEIGHT * 0.88;
+    const buttonWidth = 90;
+    const startX = GAME_WIDTH * 0.22;
+
+    // Row 1: Attack, Heavy Attack, Defend
+    const row1Actions = [
+      { label: 'Attack', action: () => this.playerAttack(), mana: 0 },
+      { label: 'Heavy', action: () => this.playerHeavyAttack(), mana: MANA_COSTS.HEAVY_ATTACK },
+      { label: 'Defend', action: () => this.playerDefend(), mana: 0 },
     ];
-    actions.forEach((btn, i) => {
-      const container = this.createButton(200 + i * 200, buttonY, btn.label, btn.action);
+
+    // Row 2: Heal, Flee
+    const row2Actions = [
+      { label: 'Heal', action: () => this.playerHeal(), mana: MANA_COSTS.HEAL },
+      { label: 'Flee', action: () => this.playerFlee(), mana: 0 },
+    ];
+
+    row1Actions.forEach((btn, i) => {
+      const x = startX + i * (buttonWidth + 20);
+      const label = btn.mana > 0 ? `${btn.label} (${btn.mana})` : btn.label;
+      const container = this.createButton(x, row1Y, label, btn.action, buttonWidth);
+      this.actionButtons.push(container);
+    });
+
+    row2Actions.forEach((btn, i) => {
+      const x = startX + 60 + i * (buttonWidth + 20);
+      const label = btn.mana > 0 ? `${btn.label} (${btn.mana})` : btn.label;
+      const container = this.createButton(x, row2Y, label, btn.action, buttonWidth);
       this.actionButtons.push(container);
     });
   }
 
-  private createButton(x: number, y: number, label: string, onClick: () => void): Phaser.GameObjects.Container {
+  private createButton(x: number, y: number, label: string, onClick: () => void, width: number = 140): Phaser.GameObjects.Container {
     const container = this.add.container(x, y);
-    const w = 140, h = 45;
+    const w = width, h = 40;
     const bg = this.add.graphics();
     this.drawButton(bg, w, h, false);
     const text = this.add.text(0, 0, label, { fontFamily: 'monospace', fontSize: '16px', color: '#ffffff' }).setOrigin(0.5);
@@ -411,25 +502,179 @@ export class CombatScene extends Phaser.Scene {
     const enemyHitAnim = `${enemyType}-hit`;
     if (this.enemyHasAnimations && this.anims.exists(enemyHitAnim)) {
       this.enemySprite.play(enemyHitAnim);
-      this.enemySprite.once('animationcomplete', () => this.enemySprite.play(`${enemyType}-idle`));
+      this.enemySprite.once('animationcomplete', () => this.enemySprite.setTexture(this.getEnemyTexture()));
     } else {
       this.shakeSprite(this.enemySprite);
     }
 
     if (result.isCrit) {
-      this.particles.criticalHit({ x: 600, y: 300 });
+      this.particles.criticalHit({ x: this.ENEMY_X, y: this.COMBATANT_Y });
       this.screenEffects.zoomPulse(1.03);
     } else {
-      this.particles.hitSparks({ x: 600, y: 300 });
+      this.particles.hitSparks({ x: this.ENEMY_X, y: this.COMBATANT_Y });
     }
 
     this.showDamageNumber(600, 280, result.damage, result.isCrit, false, () => {
       const playerClass = this.character.class.toLowerCase();
-      if (this.anims.exists(`${playerClass}-idle`)) {
-        this.playerSprite.play(`${playerClass}-idle`);
-      }
+      // Reset to static texture after attack animation
+      this.playerSprite.setTexture(`player-${playerClass}`);
       this.updateHealthBars();
       this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
+    });
+  }
+
+  // ==================== PLAYER HEAVY ATTACK ====================
+
+  private playerHeavyAttack(): void {
+    if (this.isAnimating || this.isWaitingForTx || this.currentTurn !== 'player') return;
+
+    // Check mana
+    if (this.character.mana < MANA_COSTS.HEAVY_ATTACK) {
+      this.addLogMessage('Not enough mana for Heavy Attack!');
+      soundManager.play('error');
+      return;
+    }
+
+    this.isWaitingForTx = true;
+    this.isAnimating = true;
+    this.setButtonsEnabled(false);
+    this.showTxStatus('Signing heavy attack...');
+
+    gameEvents.emit(GAME_EVENTS.PLAYER_HEAVY_ATTACK_REQUEST);
+  }
+
+  private onPlayerHeavyAttackConfirmed(): void {
+    this.isWaitingForTx = false;
+    soundManager.play('attack');
+
+    // Deduct mana locally
+    this.character.mana -= MANA_COSTS.HEAVY_ATTACK;
+
+    // Calculate heavy damage (1.5x)
+    const result = this.calculateDamage(this.character, this.enemy);
+    const heavyDamage = Math.floor(result.damage * 1.5);
+    this.enemy.health -= heavyDamage;
+
+    this.addLogMessage(`HEAVY ATTACK! Dealt ${heavyDamage} damage! (-${MANA_COSTS.HEAVY_ATTACK} mana)`);
+
+    const playerClass = this.character.class.toLowerCase();
+    const attackAnim = `${playerClass}-attack`;
+
+    if (this.anims.exists(attackAnim)) {
+      this.playerSprite.play(attackAnim);
+      this.playerSprite.once('animationcomplete', () => this.onHeavyAttackHit(heavyDamage, result.isCrit));
+    } else {
+      this.playAttackAnimation(this.playerSprite, 600, () => this.onHeavyAttackHit(heavyDamage, result.isCrit));
+    }
+  }
+
+  private onHeavyAttackHit(damage: number, isCrit: boolean): void {
+    soundManager.play('critical'); // Always use critical sound for heavy attack
+    this.particles.criticalHit({ x: this.ENEMY_X, y: this.COMBATANT_Y });
+    this.screenEffects.zoomPulse(1.05);
+
+    this.showDamageNumber(600, 280, damage, true, false, () => {
+      const playerClass = this.character.class.toLowerCase();
+      // Reset to static texture after attack animation
+      this.playerSprite.setTexture(`player-${playerClass}`);
+      this.updateHealthBars();
+      this.enemy.health <= 0 ? this.enemyDefeated() : this.switchTurn();
+    });
+  }
+
+  // ==================== PLAYER DEFEND ====================
+
+  private playerDefend(): void {
+    if (this.isAnimating || this.isWaitingForTx || this.currentTurn !== 'player') return;
+
+    this.isWaitingForTx = true;
+    this.isAnimating = true;
+    this.setButtonsEnabled(false);
+    this.showTxStatus('Signing defend...');
+
+    gameEvents.emit(GAME_EVENTS.PLAYER_DEFEND_REQUEST);
+  }
+
+  private onPlayerDefendConfirmed(): void {
+    this.isWaitingForTx = false;
+    this.isPlayerDefending = true;
+    soundManager.play('buttonClick');
+
+    this.addLogMessage('You brace for impact! (50% damage reduction)');
+
+    // Visual feedback - brief shield flash
+    const shield = this.add.graphics();
+    shield.fillStyle(0x4488ff, 0.3);
+    shield.fillCircle(200, 300, 80);
+    this.tweens.add({
+      targets: shield,
+      alpha: 0,
+      duration: 500,
+      onComplete: () => shield.destroy()
+    });
+
+    this.isAnimating = false;
+    this.switchTurn();
+  }
+
+  // ==================== PLAYER HEAL ====================
+
+  private playerHeal(): void {
+    if (this.isAnimating || this.isWaitingForTx || this.currentTurn !== 'player') return;
+
+    // Check mana
+    if (this.character.mana < MANA_COSTS.HEAL) {
+      this.addLogMessage('Not enough mana to Heal!');
+      soundManager.play('error');
+      return;
+    }
+
+    // Check if already at full health
+    if (this.character.health >= this.character.maxHealth) {
+      this.addLogMessage('Already at full health!');
+      soundManager.play('error');
+      return;
+    }
+
+    this.isWaitingForTx = true;
+    this.isAnimating = true;
+    this.setButtonsEnabled(false);
+    this.showTxStatus('Signing heal...');
+
+    gameEvents.emit(GAME_EVENTS.PLAYER_HEAL_REQUEST);
+  }
+
+  private onPlayerHealConfirmed(): void {
+    this.isWaitingForTx = false;
+    soundManager.play('levelUp'); // Use level up sound for heal
+
+    // Deduct mana and heal locally
+    this.character.mana -= MANA_COSTS.HEAL;
+    const healAmount = Math.floor(this.character.maxHealth * 0.3);
+    const oldHealth = this.character.health;
+    this.character.health = Math.min(this.character.health + healAmount, this.character.maxHealth);
+    const actualHeal = this.character.health - oldHealth;
+
+    this.addLogMessage(`Healed for ${actualHeal} HP! (-${MANA_COSTS.HEAL} mana)`);
+
+    // Visual feedback - green glow
+    const healGlow = this.add.graphics();
+    healGlow.fillStyle(0x44ff44, 0.4);
+    healGlow.fillCircle(200, 300, 60);
+    this.tweens.add({
+      targets: healGlow,
+      alpha: 0,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      duration: 600,
+      onComplete: () => healGlow.destroy()
+    });
+
+    // Show heal number
+    this.showDamageNumber(200, 280, actualHeal, false, true, () => {
+      this.updateHealthBars();
+      this.isAnimating = false;
+      this.switchTurn();
     });
   }
 
@@ -462,19 +707,51 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private enemyAttack(): void {
+    const intent = this.enemyIntent;
+
+    // Handle enemy defend - no attack
+    if (intent === ENEMY_INTENT.DEFEND) {
+      this.addLogMessage(`${this.enemy.name} braces for your next attack!`);
+      // Generate new intent for next turn
+      this.updateEnemyIntent(Math.floor(Math.random() * 3));
+      this.isAnimating = false;
+      this.switchTurn();
+      return;
+    }
+
+    // Calculate base damage
     const result = this.calculateDamage(this.enemy, this.character);
-    this.character.health -= result.damage;
-    this.addLogMessage(`${this.enemy.name} attacks for ${result.damage} damage!`);
-    gameEvents.emit(GAME_EVENTS.COMBAT_DAMAGE, { target: 'player', damage: result.damage });
+    let finalDamage = result.damage;
+
+    // Heavy attack: 1.5x damage
+    if (intent === ENEMY_INTENT.HEAVY_ATTACK) {
+      finalDamage = Math.floor(result.damage * 1.5);
+    }
+
+    // Apply player defend reduction (50%)
+    if (this.isPlayerDefending) {
+      finalDamage = Math.floor(finalDamage / 2);
+      this.isPlayerDefending = false;
+      this.addLogMessage(`Your defense reduced the damage!`);
+    }
+
+    this.character.health -= finalDamage;
+
+    const attackType = intent === ENEMY_INTENT.HEAVY_ATTACK ? 'HEAVY ATTACKS' : 'attacks';
+    this.addLogMessage(`${this.enemy.name} ${attackType} for ${finalDamage} damage!`);
+    gameEvents.emit(GAME_EVENTS.COMBAT_DAMAGE, { target: 'player', damage: finalDamage });
+
+    // Generate new intent for next turn
+    this.updateEnemyIntent(Math.floor(Math.random() * 3));
 
     const enemyType = this.getEnemyType();
     const enemyAttackAnim = `${enemyType}-attack`;
 
     if (this.enemyHasAnimations && this.anims.exists(enemyAttackAnim)) {
       this.enemySprite.play(enemyAttackAnim);
-      this.enemySprite.once('animationcomplete', () => this.onEnemyAttackHit(result));
+      this.enemySprite.once('animationcomplete', () => this.onEnemyAttackHit({ ...result, damage: finalDamage }));
     } else {
-      this.playAttackAnimation(this.enemySprite, 200, () => this.onEnemyAttackHit(result));
+      this.playAttackAnimation(this.enemySprite, 200, () => this.onEnemyAttackHit({ ...result, damage: finalDamage }));
     }
   }
 
@@ -486,21 +763,19 @@ export class CombatScene extends Phaser.Scene {
     if (this.anims.exists(playerHitAnim)) {
       this.playerSprite.play(playerHitAnim);
       this.playerSprite.once('animationcomplete', () => {
-        if (this.character.health > 0) this.playerSprite.play(`${playerClass}-idle`);
+        if (this.character.health > 0) this.playerSprite.setTexture(`player-${playerClass}`);
       });
     } else {
       this.shakeSprite(this.playerSprite);
     }
 
     this.screenEffects.damageEffect();
-    this.particles.hitSparks({ x: 200, y: 300 });
+    this.particles.hitSparks({ x: this.PLAYER_X, y: this.COMBATANT_Y });
     this.flashRed();
 
     this.showDamageNumber(200, 280, result.damage, false, false, () => {
-      const enemyType = this.getEnemyType();
-      if (this.enemyHasAnimations && this.anims.exists(`${enemyType}-idle`)) {
-        this.enemySprite.play(`${enemyType}-idle`);
-      }
+      // Reset enemy to static texture after attack animation
+      this.enemySprite.setTexture(this.getEnemyTexture());
       this.updateHealthBars();
       if (this.character.health <= this.character.maxHealth * 0.3) {
         this.screenEffects.lowHealthVignette();
@@ -556,7 +831,7 @@ export class CombatScene extends Phaser.Scene {
   private enemyDefeated(): void {
     const xp = this.enemy.experienceReward;
     soundManager.play('enemyDeath');
-    this.particles.deathSmoke({ x: 600, y: 300 });
+    this.particles.deathSmoke({ x: this.ENEMY_X, y: this.COMBATANT_Y });
     this.addLogMessage(`${this.enemy.name} defeated! +${xp} XP`);
     gameEvents.emit(GAME_EVENTS.ENEMY_KILLED, this.enemy);
     gameEvents.emit(GAME_EVENTS.COMBAT_END, { winner: 'player', enemy: this.enemy, xpGained: xp });
@@ -614,7 +889,7 @@ export class CombatScene extends Phaser.Scene {
     this.character.isAlive = false;
     soundManager.play('playerDeath');
     this.screenEffects.heavyShake();
-    this.particles.bloodSplatter({ x: 200, y: 300 });
+    this.particles.bloodSplatter({ x: this.PLAYER_X, y: this.COMBATANT_Y });
     this.addLogMessage('You have been defeated...');
     gameEvents.emit(GAME_EVENTS.PLAYER_DIED, this.character);
     gameEvents.emit(GAME_EVENTS.COMBAT_END, { winner: 'enemy', character: this.character });
