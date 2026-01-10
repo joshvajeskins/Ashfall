@@ -132,6 +132,8 @@ export class BootScene extends Phaser.Scene {
     });
     // Load battle background
     this.load.image('battle-bg', '/assets/backgrounds/battle.png');
+    // Load VFX sprite
+    this.load.image('vfx-magic', '/assets/effects/vfx-magic.png');
   }
 
   private loadAnimationSpritesheets(): void {

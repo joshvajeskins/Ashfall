@@ -158,6 +158,9 @@ export async function executeAuthorizedCombatAction(
   playerAddress: string,
   additionalArgs: (string | number)[] = []
 ): Promise<{ hash: string; success: boolean }> {
+  // Generate a random seed for enemy attack (used for intent generation)
+  const seed = Math.floor(Math.random() * 1000000);
+
   const functionMap: Record<string, { fn: string; args: (string | number)[] }> = {
     start_combat: {
       fn: `${MODULES.combat}::start_combat`,
@@ -165,7 +168,7 @@ export async function executeAuthorizedCombatAction(
     },
     enemy_attack: {
       fn: `${MODULES.combat}::enemy_attack`,
-      args: [playerAddress],
+      args: [playerAddress, seed], // player, seed
     },
   };
 

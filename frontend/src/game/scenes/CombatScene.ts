@@ -629,16 +629,8 @@ export class CombatScene extends Phaser.Scene {
 
     this.addLogMessage('You brace for impact! (50% damage reduction)');
 
-    // Visual feedback - brief shield flash
-    const shield = this.add.graphics();
-    shield.fillStyle(0x4488ff, 0.3);
-    shield.fillCircle(200, 300, 80);
-    this.tweens.add({
-      targets: shield,
-      alpha: 0,
-      duration: 500,
-      onComplete: () => shield.destroy()
-    });
+    // Visual feedback - VFX magic effect
+    this.playVFXMagic(this.PLAYER_X, this.COMBATANT_Y, 0x4488ff);
 
     this.isAnimating = false;
     this.switchTurn();
@@ -684,18 +676,8 @@ export class CombatScene extends Phaser.Scene {
 
     this.addLogMessage(`Healed for ${actualHeal} HP! (-${MANA_COSTS.HEAL} mana)`);
 
-    // Visual feedback - green glow
-    const healGlow = this.add.graphics();
-    healGlow.fillStyle(0x44ff44, 0.4);
-    healGlow.fillCircle(200, 300, 60);
-    this.tweens.add({
-      targets: healGlow,
-      alpha: 0,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      duration: 600,
-      onComplete: () => healGlow.destroy()
-    });
+    // Visual feedback - VFX magic effect with green tint
+    this.playVFXMagic(this.PLAYER_X, this.COMBATANT_Y, 0x44ff44);
 
     // Show heal number
     this.showDamageNumber(200, 280, actualHeal, false, true, () => {
@@ -1001,5 +983,27 @@ export class CombatScene extends Phaser.Scene {
       fontFamily: 'monospace', fontSize: size, color, fontStyle: 'bold'
     }).setOrigin(0.5);
     this.tweens.add({ targets: text, y: y - 50, alpha: 0, duration: 900, ease: 'Power2', onComplete: () => { text.destroy(); onComplete(); } });
+  }
+
+  private playVFXMagic(x: number, y: number, tint: number = 0xffffff): void {
+    if (!this.textures.exists('vfx-magic')) return;
+
+    const vfx = this.add.image(x, y, 'vfx-magic')
+      .setDisplaySize(120, 120)
+      .setTint(tint)
+      .setAlpha(0.8)
+      .setDepth(50);
+
+    // Animate: scale up and fade out with rotation
+    this.tweens.add({
+      targets: vfx,
+      scaleX: 1.5,
+      scaleY: 1.5,
+      alpha: 0,
+      angle: 180,
+      duration: 600,
+      ease: 'Power2',
+      onComplete: () => vfx.destroy()
+    });
   }
 }
