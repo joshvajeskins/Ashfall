@@ -33,6 +33,7 @@ const MODULES = {
   dungeon: `${CONTRACT_ADDRESS}::dungeon`,
   loot: `${CONTRACT_ADDRESS}::loot`,
   stash: `${CONTRACT_ADDRESS}::stash`,
+  combat: `${CONTRACT_ADDRESS}::combat`,
 };
 
 // View function helper
@@ -147,6 +148,33 @@ export const stashService = {
 
   hasCapacityFor: async (address: string, count: number) => {
     return view<[boolean]>(MODULES.stash, 'has_capacity_for', [], [address, count]);
+  },
+};
+
+// Combat module functions
+export const combatService = {
+  isInCombat: async (address: string) => {
+    return view<[boolean]>(MODULES.combat, 'is_in_combat', [], [address]);
+  },
+
+  getCombatState: async (address: string) => {
+    // Returns: (enemy_health, enemy_max_health, current_turn, is_active)
+    return view<[number, number, number, boolean]>(MODULES.combat, 'get_combat_state', [], [address]);
+  },
+
+  getLastCombatResult: async (address: string) => {
+    // Returns: (last_damage_dealt, last_damage_taken, last_was_crit)
+    return view<[number, number, boolean]>(MODULES.combat, 'get_last_combat_result', [], [address]);
+  },
+
+  whoseTurn: async (address: string) => {
+    // Returns: u8 (0=player, 1=enemy)
+    return view<[number]>(MODULES.combat, 'whose_turn', [], [address]);
+  },
+
+  getEnemyIntent: async (address: string) => {
+    // Returns: u8 (0=attack, 1=heavy_attack, 2=defend)
+    return view<[number]>(MODULES.combat, 'get_enemy_intent', [], [address]);
   },
 };
 

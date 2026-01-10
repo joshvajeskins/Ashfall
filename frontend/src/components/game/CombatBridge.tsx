@@ -62,6 +62,7 @@ export function CombatBridge() {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
         action: 'player_attack',
         txHash: result.txHash,
+        combatState: result.combatState, // Include on-chain combat state
       });
     } else {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
@@ -138,6 +139,7 @@ export function CombatBridge() {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_SUCCESS, {
         action: 'player_heavy_attack',
         txHash: result.txHash,
+        combatState: result.combatState, // Include on-chain combat state
       });
     } else {
       gameEvents.emit(GAME_EVENTS.COMBAT_TX_FAILED, {
