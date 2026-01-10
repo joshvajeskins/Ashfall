@@ -154,6 +154,17 @@ export class CombatScene extends Phaser.Scene {
     this.txFailedHandler = (data: unknown) => {
       const { action, error } = data as { action: string; error: string };
       console.error(`[CombatScene] TX Failed: ${action}`, error);
+
+      // Special case: enemy_attack failed with E_COMBAT_ENDED means enemy was already killed
+      // This happens when local damage calc didn't match on-chain (enemy died on-chain)
+      if (action === 'enemy_attack' && error.includes('COMBAT_ENDED')) {
+        console.log('[CombatScene] Combat already ended on-chain - enemy was killed');
+        this.isWaitingForTx = false;
+        this.hideTxStatus();
+        this.enemyDefeated();
+        return;
+      }
+
       this.showTxError(error);
       this.isWaitingForTx = false;
       this.isAnimating = false;
@@ -1055,22 +1066,14 @@ export class CombatScene extends Phaser.Scene {
   }
 
   private playVFXMagic(x: number, y: number, tint: number = 0xffffff): void {
-    if (!this.textures.exists('vfx-magic')) return;
+    if (!this.textures.exists('vfx-magic') || !this.anims.exists('vfx-magic')) return;
 
-    const vfx = this.add.image(x, y, 'vfx-magic')
+    const vfx = this.add.sprite(x, y, 'vfx-magic')
       .setDisplaySize(180, 180)
       .setTint(tint)
-      .setAlpha(1)
       .setDepth(50);
 
-    // Animate: scale up then destroy
-    this.tweens.add({
-      targets: vfx,
-      scaleX: 1.5,
-      scaleY: 1.5,
-      duration: 600,
-      ease: 'Power2',
-      onComplete: () => vfx.destroy()
-    });
+    vfx.play('vfx-magic');
+    vfx.once('animationcomplete', () => vfx.destroy());
   }
 }
