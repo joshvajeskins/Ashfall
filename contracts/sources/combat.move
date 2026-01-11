@@ -607,12 +607,14 @@ module ashfall::combat {
         assert!(has_mana, E_NOT_ENOUGH_MANA);
 
         // Calculate damage (1.5x multiplier)
-        let (strength, agility, _) = hero::get_base_stats(player);
+        // Intelligence contributes to heavy attack damage (mana-based ability)
+        let (strength, agility, intelligence) = hero::get_base_stats(player);
         let weapon_damage = if (hero::has_weapon_equipped(player)) { 15 } else { 5 };
 
         let base_damage = 5u64;
         let strength_bonus = strength / 2;
-        let total_damage = base_damage + weapon_damage + strength_bonus;
+        let int_bonus = intelligence / 2; // INT contributes to heavy attack
+        let total_damage = base_damage + weapon_damage + strength_bonus + int_bonus;
 
         // Apply 1.5x heavy attack multiplier
         let heavy_damage = (total_damage * 3) / 2;
@@ -695,8 +697,12 @@ module ashfall::combat {
         let has_mana = hero::use_mana_from_player(player, HEAL_MANA);
         assert!(has_mana, E_NOT_ENOUGH_MANA);
 
-        // Heal 30% of max HP
-        let (amount_healed, new_health) = hero::heal_player_percent(player, 30);
+        // Heal 30% of max HP + INT bonus (each point of INT adds 1% heal)
+        // Mage (15 INT): 30% + 15% = 45% heal
+        // Warrior (5 INT): 30% + 5% = 35% heal
+        let (_, _, intelligence) = hero::get_base_stats(player);
+        let heal_percent = 30 + intelligence;
+        let (amount_healed, new_health) = hero::heal_player_percent(player, heal_percent);
 
         combat.turn_count = combat.turn_count + 1;
         combat.current_turn = TURN_ENEMY;
