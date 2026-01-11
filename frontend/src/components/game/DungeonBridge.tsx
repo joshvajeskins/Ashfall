@@ -43,7 +43,7 @@ export function DungeonBridge() {
           dungeonId: data.dungeonId,
         });
       } else {
-        console.error('[DungeonBridge] Failed to enter dungeon:', result.error);
+        console.warn('[DungeonBridge] Failed to enter dungeon:', result.error);
       }
     },
     [enterDungeon]
@@ -73,7 +73,7 @@ export function DungeonBridge() {
           console.warn('[DungeonBridge] Failed to transfer floor loot:', lootResult.error);
         }
       } else {
-        console.error('[DungeonBridge] Failed to complete floor:', result.error);
+        console.warn('[DungeonBridge] Failed to complete floor:', result.error);
       }
     },
     [triggerCompleteFloor, triggerTransferFloorLoot]
@@ -92,7 +92,7 @@ export function DungeonBridge() {
           txHash: result.txHash,
         });
       } else {
-        console.error('[DungeonBridge] Failed to complete boss:', result.error);
+        console.warn('[DungeonBridge] Failed to complete boss:', result.error);
       }
     },
     [triggerCompleteBoss]
@@ -111,7 +111,7 @@ export function DungeonBridge() {
       });
       gameEvents.emit(GAME_EVENTS.DEATH_COMPLETE, {});
     } else {
-      console.error('[DungeonBridge] Failed to process death:', result.error);
+      console.warn('[DungeonBridge] Failed to process death:', result.error);
     }
   }, [triggerPlayerDeath]);
 
@@ -127,7 +127,7 @@ export function DungeonBridge() {
         txHash: result.txHash,
       });
     } else {
-      console.error('[DungeonBridge] Failed to exit dungeon:', result.error);
+      console.warn('[DungeonBridge] Failed to exit dungeon:', result.error);
     }
   }, [triggerExitDungeon]);
 

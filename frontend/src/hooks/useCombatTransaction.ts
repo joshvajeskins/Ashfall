@@ -106,24 +106,31 @@ export function useCombatTransaction() {
 
       try {
         const result = await startCombat(movementWallet.address, enemyType, floor, roomId);
-        if (result.success && result.txHash) {
-          completeTransaction(txId, result.txHash);
-        } else {
-          // Failed - update notification
-          failTransaction(txId);
-          setTimeout(() => removeTransaction(txId), 4000);
-        }
 
-        // Handle already in combat - return existing state for resumption
+        // Handle already in combat FIRST - this is a resume, not a failure
         if (result.alreadyInCombat && result.combatState) {
+          console.log('[useCombatTransaction] Already in combat, preparing resume state:', result.combatState);
+
+          // Update notification to show "Combat Resumed" instead of failed
+          updateTransactionHash(txId, 'resumed');
+          confirmTransaction(txId);
+          setTimeout(() => removeTransaction(txId), 3000);
+
           // Fetch enemy intent for the existing combat
           let enemyIntent = 0;
           try {
             const [intent] = await combatService.getEnemyIntent(movementWallet.address);
-            enemyIntent = intent;
-          } catch {
-            // Use default intent
+            enemyIntent = Number(intent) || 0;
+          } catch (e) {
+            console.log('[useCombatTransaction] Could not fetch enemy intent:', e);
           }
+
+          // Parse values as numbers (chain returns strings for u64)
+          const enemyHealth = Number(result.combatState.enemyHealth) || 0;
+          const enemyMaxHealth = Number(result.combatState.enemyMaxHealth) || 0;
+          const isActive = result.combatState.isActive === true || result.combatState.isActive === 'true';
+
+          console.log('[useCombatTransaction] Resume combat state:', { enemyHealth, enemyMaxHealth, isActive, enemyIntent });
 
           return {
             success: false,
@@ -131,12 +138,21 @@ export function useCombatTransaction() {
             alreadyInCombat: true,
             enemyIntent,
             combatState: {
-              enemyHealth: result.combatState.enemyHealth,
-              enemyMaxHealth: result.combatState.enemyMaxHealth,
-              isActive: result.combatState.isActive,
+              enemyHealth,
+              enemyMaxHealth,
+              isActive,
               enemyKilled: false,
             },
           };
+        }
+
+        // Normal success/failure handling
+        if (result.success && result.txHash) {
+          completeTransaction(txId, result.txHash);
+        } else {
+          // Failed - update notification
+          failTransaction(txId);
+          setTimeout(() => removeTransaction(txId), 4000);
         }
 
         // Return with on-chain enemy intent, enemy health, and player stats

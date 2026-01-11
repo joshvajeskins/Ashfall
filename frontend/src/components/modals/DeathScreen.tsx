@@ -52,7 +52,7 @@ export function DeathScreen() {
         setChainError(result.error || 'Failed to process death');
       }
     } catch (error) {
-      console.error('Failed to process death on chain:', error);
+      console.warn('Failed to process death on chain:', error);
       soundManager.play('error');
       setChainError(error instanceof Error ? error.message : 'Unknown error');
     } finally {

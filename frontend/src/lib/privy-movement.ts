@@ -37,7 +37,7 @@ export async function createMovementWallet(
     );
     return wallet;
   } catch (error) {
-    console.error('Error creating Movement wallet:', error);
+    console.warn('Error creating Movement wallet:', error);
     throw error;
   }
 }

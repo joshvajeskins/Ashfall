@@ -76,7 +76,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to create character';
         setError(errorMessage);
-        console.error('Error creating character:', err);
+        console.warn('Error creating character:', err);
         return false;
       } finally {
         setIsCreating(false);
@@ -115,7 +115,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to replace character';
         setError(errorMessage);
-        console.error('Error replacing character:', err);
+        console.warn('Error replacing character:', err);
         return false;
       } finally {
         setIsCreating(false);
@@ -152,7 +152,7 @@ export function useCreateCharacter(): UseCreateCharacterResult {
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete character';
       setError(errorMessage);
-      console.error('Error deleting character:', err);
+      console.warn('Error deleting character:', err);
       return false;
     } finally {
       setIsDeleting(false);

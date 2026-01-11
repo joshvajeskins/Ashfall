@@ -208,7 +208,7 @@ export class CombatScene extends Phaser.Scene {
 
     this.txFailedHandler = (data: unknown) => {
       const { action, error } = data as { action: string; error: string };
-      console.error(`[CombatScene] TX Failed: ${action}`, error);
+      console.warn(`[CombatScene] TX Failed: ${action}`, error);
 
       // Ignore events if combat already ended
       if (this.combatEnded) {
