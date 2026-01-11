@@ -10,6 +10,8 @@ export class MenuScene extends Phaser.Scene {
   private viewStashBtn!: Phaser.GameObjects.Container;
   private characterPreview!: Phaser.GameObjects.Container;
   private transitions!: TransitionManager;
+  private isEnteringDungeon = false;
+  private loadingText: Phaser.GameObjects.Text | null = null;
 
   constructor() {
     super({ key: 'MenuScene' });
@@ -17,6 +19,8 @@ export class MenuScene extends Phaser.Scene {
 
   init(data: { character?: Character }): void {
     this.character = data.character || null;
+    this.isEnteringDungeon = false;
+    this.loadingText = null;
   }
 
   create(): void {
@@ -214,15 +218,73 @@ export class MenuScene extends Phaser.Scene {
   }
 
   private setupEventListeners(): void {
-    // Listen for UI events from React
-    gameEvents.on(GAME_EVENTS.UI_ENTER_DUNGEON, () => this.onEnterDungeon());
+    // Listen for successful dungeon entry from DungeonBridge
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER, (data: { action?: string; txHash?: string }) => {
+      if (data?.action === 'enter_dungeon' && data?.txHash) {
+        this.onDungeonEntrySuccess();
+      }
+    });
+
+    // Listen for failed dungeon entry
+    gameEvents.on(GAME_EVENTS.DUNGEON_ENTER_FAILED, () => {
+      this.onDungeonEntryFailed();
+    });
   }
 
   private onEnterDungeon(): void {
-    if (!this.character?.isAlive) return;
+    if (!this.character?.isAlive || this.isEnteringDungeon) return;
 
-    gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
+    this.isEnteringDungeon = true;
+    this.enterDungeonBtn.disableInteractive();
+
+    // Show loading indicator
+    this.loadingText = this.add.text(GAME_WIDTH / 2, 520, 'Entering dungeon...', {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#ffaa00',
+    }).setOrigin(0.5);
+
+    // Emit event for DungeonBridge to make the on-chain transaction
+    // DungeonBridge will emit DUNGEON_ENTER with action='enter_dungeon' on success
+    gameEvents.emit(GAME_EVENTS.UI_ENTER_DUNGEON, { dungeonId: 1 });
+  }
+
+  private onDungeonEntrySuccess(): void {
+    if (!this.isEnteringDungeon) return;
+
+    // Clean up loading state
+    this.loadingText?.destroy();
+    this.loadingText = null;
+
+    // Start the dungeon scene
     this.scene.start('DungeonScene', { character: this.character });
+  }
+
+  private onDungeonEntryFailed(): void {
+    if (!this.isEnteringDungeon) return;
+
+    // Reset loading state
+    this.isEnteringDungeon = false;
+    this.loadingText?.destroy();
+    this.loadingText = null;
+
+    // Re-enable button
+    if (this.character?.isAlive) {
+      this.enterDungeonBtn.setInteractive();
+    }
+
+    // Show error briefly
+    const errorText = this.add.text(GAME_WIDTH / 2, 520, 'Failed to enter dungeon', {
+      fontFamily: 'monospace',
+      fontSize: '16px',
+      color: '#ff4444',
+    }).setOrigin(0.5);
+
+    soundManager.play('error');
+
+    this.time.delayedCall(3000, () => {
+      errorText.destroy();
+    });
   }
 
   private onViewStash(): void {
