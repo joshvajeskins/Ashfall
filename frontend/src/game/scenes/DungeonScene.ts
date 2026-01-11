@@ -708,6 +708,12 @@ export class DungeonScene extends Phaser.Scene {
         gameEvents.emit(GAME_EVENTS.ITEM_PICKUP, itemData);
         item.destroy();
         this.items.splice(i, 1);
+
+        // CRITICAL: Remove from room loot array to prevent respawn after combat
+        const lootIndex = this.currentRoom.loot.findIndex(l => l.id === itemData.id);
+        if (lootIndex !== -1) {
+          this.currentRoom.loot.splice(lootIndex, 1);
+        }
       }
     }
     // Mark room as cleared when all items collected AND no enemies remain
