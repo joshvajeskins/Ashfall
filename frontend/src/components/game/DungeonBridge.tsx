@@ -19,6 +19,8 @@ import { useDungeonTransaction } from '@/hooks/useDungeonTransaction';
  * - DUNGEON_TX_FAILED: Transaction failed
  */
 export function DungeonBridge() {
+  console.log('[DungeonBridge] Component rendering');
+
   const {
     enterDungeon,
     triggerCompleteFloor,
@@ -136,9 +138,16 @@ export function DungeonBridge() {
 
   // Subscribe to game events
   useEffect(() => {
+    console.log('[DungeonBridge] Setting up event listeners');
+
+    const wrappedEnterDungeon = (data: unknown) => {
+      console.log('[DungeonBridge] Received UI_ENTER_DUNGEON event:', data);
+      handleEnterDungeon(data as { dungeonId: number });
+    };
+
     gameEvents.on(
       GAME_EVENTS.UI_ENTER_DUNGEON,
-      handleEnterDungeon as (...args: unknown[]) => void
+      wrappedEnterDungeon as (...args: unknown[]) => void
     );
     // Listen to FLOOR_COMPLETE (triggered when player exits floor via door), not ROOM_CLEAR
     gameEvents.on(
@@ -159,9 +168,10 @@ export function DungeonBridge() {
     );
 
     return () => {
+      console.log('[DungeonBridge] Cleaning up event listeners');
       gameEvents.off(
         GAME_EVENTS.UI_ENTER_DUNGEON,
-        handleEnterDungeon as (...args: unknown[]) => void
+        wrappedEnterDungeon as (...args: unknown[]) => void
       );
       gameEvents.off(
         GAME_EVENTS.FLOOR_COMPLETE,

@@ -12,7 +12,6 @@ import { gameEvents, GAME_EVENTS } from '@/game/events/GameEvents';
 import { useGameStore } from '@/stores/gameStore';
 import { BossWarning } from '@/components/ui/BossWarning';
 import { CombatBridge } from './CombatBridge';
-import { DungeonBridge } from './DungeonBridge';
 
 // Module-level singleton to prevent multiple Phaser instances (React StrictMode fix)
 let globalGameInstance: Phaser.Game | null = null;
@@ -38,13 +37,13 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
       if (sceneName === 'BootScene') {
         onReady?.();
         // Go directly to DungeonScene, skip MenuScene entirely
+        // Note: DUNGEON_ENTER was already emitted by DungeonBridge after blockchain tx succeeded
         if (startInDungeon && !globalHasStartedDungeon) {
           const currentCharacter = useGameStore.getState().character;
           globalHasStartedDungeon = true;
           // Stop BootScene first, then start DungeonScene
           globalGameInstance?.scene.stop('BootScene');
           globalGameInstance?.scene.start('DungeonScene', { character: currentCharacter });
-          gameEvents.emit(GAME_EVENTS.DUNGEON_ENTER, { dungeonId: 1 });
         }
       }
     };
@@ -145,7 +144,6 @@ export function GameCanvas({ onReady, startInDungeon = true }: GameCanvasProps) 
       />
       <BossWarning />
       <CombatBridge />
-      <DungeonBridge />
     </div>
   );
 }
