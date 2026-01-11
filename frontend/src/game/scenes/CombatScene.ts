@@ -254,7 +254,7 @@ export class CombatScene extends Phaser.Scene {
         // Set local mana to 0 to prevent further mana-consuming attempts
         // The actual on-chain mana might be > 0 but < required, but this prevents retries
         this.character.mana = 0;
-        this.updateStatBars();
+        this.updateHealthBars();
         this.addLogMessage('Not enough mana! (On-chain state synced)');
         soundManager.play('error');
         this.isWaitingForTx = false;
@@ -323,7 +323,7 @@ export class CombatScene extends Phaser.Scene {
       if (playerStats.maxMana !== undefined && playerStats.maxMana > 0) {
         this.character.maxMana = playerStats.maxMana;
       }
-      this.updateStatBars();
+      this.updateHealthBars();
       console.log(`[CombatScene] Synced player stats from chain - HP: ${this.character.health}/${this.character.maxHealth}, Mana: ${this.character.mana}/${this.character.maxMana}`);
     }
 
@@ -812,20 +812,18 @@ export class CombatScene extends Phaser.Scene {
     // Deduct mana locally
     this.character.mana -= MANA_COSTS.HEAVY_ATTACK;
 
-    // Calculate heavy damage (1.5x) - INT contributes to heavy attack
-    // Use the SAME seed sent to contract for synced calculation
-    const result = this.calculateDamage(this.character, this.enemy, this.currentHeavyAttackSeed);
-    const intBonus = Math.floor(this.character.stats.intelligence / 2);
-    const heavyDamage = Math.floor((result.damage + intBonus) * 1.5);
+    // Calculate heavy damage using dedicated function that matches contract EXACTLY
+    // Contract: (base + weapon + str/2 + int/2) * 1.5, THEN crit doubles
+    const result = this.calculateHeavyAttackDamage(this.currentHeavyAttackSeed);
 
     // Use on-chain enemy health if available, otherwise use local calculation
     if (combatState) {
       this.enemy.health = combatState.enemyHealth;
     } else {
-      this.enemy.health -= heavyDamage;
+      this.enemy.health -= result.damage;
     }
 
-    this.addLogMessage(`HEAVY ATTACK! Dealt ${heavyDamage} damage! (-${MANA_COSTS.HEAVY_ATTACK} mana)`);
+    this.addLogMessage(`HEAVY ATTACK! Dealt ${result.damage} damage${result.isCrit ? ' (CRIT!)' : ''} (-${MANA_COSTS.HEAVY_ATTACK} mana)`);
 
     const playerClass = this.character.class.toLowerCase();
     const attackAnim = `${playerClass}-attack`;
@@ -833,9 +831,9 @@ export class CombatScene extends Phaser.Scene {
     if (this.anims.exists(attackAnim)) {
       this.scalePlayerForAnimation();
       this.playerSprite.play(attackAnim);
-      this.playerSprite.once('animationcomplete', () => this.onHeavyAttackHit(heavyDamage, result.isCrit));
+      this.playerSprite.once('animationcomplete', () => this.onHeavyAttackHit(result.damage, result.isCrit));
     } else {
-      this.playAttackAnimation(this.playerSprite, 600, () => this.onHeavyAttackHit(heavyDamage, result.isCrit));
+      this.playAttackAnimation(this.playerSprite, 600, () => this.onHeavyAttackHit(result.damage, result.isCrit));
     }
   }
 
@@ -1302,24 +1300,77 @@ export class CombatScene extends Phaser.Scene {
     return critRoll < critThreshold;
   }
 
+  /**
+   * Calculate damage - MUST match contract exactly!
+   *
+   * Contract formula (combat.move:339-351):
+   *   weapon_damage = 15 if weapon equipped, 5 if unarmed
+   *   base_damage = 5
+   *   strength_bonus = strength / 2 (integer division)
+   *   total_damage = base_damage + weapon_damage + strength_bonus
+   *   crit_threshold = 50 + (agility * 2) out of 1000
+   *   final_damage = total_damage * 2 if crit, else total_damage
+   *   NO defense subtraction for player attacks!
+   */
   private calculateDamage(attacker: Character | Enemy, target: Character | Enemy, seed?: number): CombatResult {
     const isPlayer = 'stats' in attacker;
-    const enemy = attacker as Enemy;
-    const baseDamage = isPlayer
-      ? GAME_CONSTANTS.BASE_DAMAGE + (attacker as Character).stats.strength * 0.5
-      : (enemy.damage ?? enemy.attack ?? 10);
-    const weaponDamage = isPlayer && (attacker as Character).equipment.weapon?.stats.damage || 0;
-    const defense = 'defense' in target ? (target as Enemy).defense : 0;
-
-    // Use seed-based crit calculation (synced with contract)
     const actualSeed = seed ?? this.generateSeed();
-    const agility = isPlayer ? (attacker as Character).stats.agility : 0;
-    const isCrit = this.calculateCrit(agility, actualSeed);
 
-    const rawDamage = baseDamage + weaponDamage;
-    const mitigated = Math.max(1, rawDamage - defense);
-    const finalDamage = Math.floor(isCrit ? mitigated * GAME_CONSTANTS.CRIT_MULTIPLIER : mitigated);
-    return { damage: finalDamage, isCrit, targetDied: target.health - finalDamage <= 0 };
+    if (isPlayer) {
+      const char = attacker as Character;
+      // Contract uses HARDCODED weapon damage: 15 if equipped, 5 if not
+      const hasWeapon = !!char.equipment.weapon;
+      const weaponDamage = hasWeapon ? 15 : 5;
+      const baseDamage = 5;
+      const strengthBonus = Math.floor(char.stats.strength / 2); // Integer division like contract
+      const totalDamage = baseDamage + weaponDamage + strengthBonus;
+
+      // Crit check: same formula as contract
+      const isCrit = this.calculateCrit(char.stats.agility, actualSeed);
+      const finalDamage = isCrit ? totalDamage * 2 : totalDamage;
+      // Contract does NOT subtract enemy defense for player attacks
+
+      return { damage: finalDamage, isCrit, targetDied: target.health - finalDamage <= 0 };
+    } else {
+      // Enemy attacking player - different formula
+      const enemyAttacker = attacker as Enemy;
+      const damage = enemyAttacker.damage ?? enemyAttacker.attack ?? 10;
+      // Enemy attacks don't crit in current contract implementation
+      return { damage, isCrit: false, targetDied: target.health - damage <= 0 };
+    }
+  }
+
+  /**
+   * Calculate HEAVY ATTACK damage - MUST match contract exactly!
+   *
+   * Contract formula (combat.move:609-626):
+   *   weapon_damage = 15 if weapon equipped, 5 if unarmed
+   *   base_damage = 5
+   *   strength_bonus = strength / 2 (integer division)
+   *   int_bonus = intelligence / 2 (integer division) - INT contributes to heavy attack!
+   *   total_damage = base_damage + weapon_damage + strength_bonus + int_bonus
+   *   heavy_damage = (total_damage * 3) / 2  (1.5x multiplier applied FIRST)
+   *   crit_threshold = 50 + (agility * 2) out of 1000
+   *   final_damage = heavy_damage * 2 if crit, else heavy_damage (crit applied to heavy damage)
+   */
+  private calculateHeavyAttackDamage(seed: number): CombatResult {
+    const char = this.character;
+    // Contract uses HARDCODED weapon damage: 15 if equipped, 5 if not
+    const hasWeapon = !!char.equipment.weapon;
+    const weaponDamage = hasWeapon ? 15 : 5;
+    const baseDamage = 5;
+    const strengthBonus = Math.floor(char.stats.strength / 2); // Integer division
+    const intBonus = Math.floor(char.stats.intelligence / 2); // INT contributes to heavy attack
+    const totalDamage = baseDamage + weaponDamage + strengthBonus + intBonus;
+
+    // Apply 1.5x heavy attack multiplier FIRST (before crit)
+    const heavyDamage = Math.floor((totalDamage * 3) / 2);
+
+    // Crit check: same formula as contract (applied to heavy damage)
+    const isCrit = this.calculateCrit(char.stats.agility, seed);
+    const finalDamage = isCrit ? heavyDamage * 2 : heavyDamage;
+
+    return { damage: finalDamage, isCrit, targetDied: this.enemy.health - finalDamage <= 0 };
   }
 
   private playAttackAnimation(sprite: Phaser.GameObjects.Sprite, targetX: number, onComplete: () => void): void {
