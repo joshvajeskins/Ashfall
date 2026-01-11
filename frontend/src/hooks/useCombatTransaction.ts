@@ -162,8 +162,9 @@ export function useCombatTransaction() {
 
   /**
    * Player attack - User wallet signs (gas sponsored)
+   * @param seed - Random seed for crit calculation (passed from CombatScene for synced calculations)
    */
-  const playerAttack = useCallback(async (): Promise<CombatResult> => {
+  const playerAttack = useCallback(async (seed?: number): Promise<CombatResult> => {
     if (!authenticated || !movementWallet) {
       return { success: false, error: 'Wallet not connected' };
     }
@@ -175,8 +176,8 @@ export function useCombatTransaction() {
     const txId = startTransaction('Player Attack');
 
     try {
-      // Generate random seed for crit calculation
-      const seed = Math.floor(Math.random() * 1000000);
+      // Use passed seed or generate new one (passed seed ensures frontend/contract sync)
+      const attackSeed = seed ?? Math.floor(Math.random() * 1000000);
 
       // Build sponsored transaction
       const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
@@ -186,7 +187,7 @@ export function useCombatTransaction() {
           sender: movementWallet.address,
           function: `${MODULES.combat}::player_attack`,
           typeArguments: [],
-          functionArguments: [seed],
+          functionArguments: [attackSeed],
         }),
       });
 
@@ -404,8 +405,9 @@ export function useCombatTransaction() {
   /**
    * Player heavy attack - User wallet signs (gas sponsored)
    * Costs 20 mana, deals 1.5x damage
+   * @param seed - Random seed for crit calculation (passed from CombatScene for synced calculations)
    */
-  const playerHeavyAttack = useCallback(async (): Promise<CombatResult> => {
+  const playerHeavyAttack = useCallback(async (seed?: number): Promise<CombatResult> => {
     if (!authenticated || !movementWallet) {
       return { success: false, error: 'Wallet not connected' };
     }
@@ -417,7 +419,8 @@ export function useCombatTransaction() {
     const txId = startTransaction('Heavy Attack');
 
     try {
-      const seed = Math.floor(Math.random() * 1000000);
+      // Use passed seed or generate new one (passed seed ensures frontend/contract sync)
+      const attackSeed = seed ?? Math.floor(Math.random() * 1000000);
 
       const buildResponse = await fetch(`${API_BASE_URL}/api/sponsor-transaction`, {
         method: 'POST',
@@ -426,7 +429,7 @@ export function useCombatTransaction() {
           sender: movementWallet.address,
           function: `${MODULES.combat}::player_heavy_attack`,
           typeArguments: [],
-          functionArguments: [seed],
+          functionArguments: [attackSeed],
         }),
       });
 
