@@ -129,6 +129,8 @@ function AuthenticatedHome() {
             Back to Menu
           </ImageButton>
         </div>
+        {/* DungeonBridge handles floor complete, loot transfer, boss defeat, death, victory */}
+        <DungeonBridge />
       </div>
     );
   }
